@@ -172,11 +172,6 @@ AI usage:
 
 - Codex was used to produce evaluator-focused technical documentation
 
-Specific outputs:
-
-- [README.md](/e:/AI-Conversational/README.md)
-- [GAP_IMPLEMENTATION_STATUS.md](/e:/AI-Conversational/GAP_IMPLEMENTATION_STATUS.md)
-- [AI_AUGMENTED_DEVELOPMENT.md](/e:/AI-Conversational/AI_AUGMENTED_DEVELOPMENT.md)
 
 Why this helped:
 
