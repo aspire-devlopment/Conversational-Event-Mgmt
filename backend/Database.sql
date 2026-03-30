@@ -1,6 +1,22 @@
 -- =========================================
 -- DATABASE SCHEMA: EVENT MANAGEMENT SYSTEM
 -- =========================================
+-- Usage:
+--   psql -U postgres -f backend/Database.sql
+--
+-- This script creates the application database if it does not exist,
+-- connects to it, and then applies the full schema and seed data.
+
+\set db_name EVENT_MANAGEMENT_SYSTEM
+
+SELECT format('CREATE DATABASE %I', :'db_name')
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM pg_database
+    WHERE datname = :'db_name'
+)\gexec
+
+\connect :db_name
 
 -- =========================
 -- 1. ROLES TABLE

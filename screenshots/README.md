@@ -58,6 +58,41 @@ The script expects:
 
 It also creates a temporary Manager account and a role-tagged event for the role-based screenshot.
 
+You can also capture only the missing screenshot groups instead of rerunning the full flow:
+
+```bash
+cd frontend
+npm run capture:screenshots -- multilingual password-reset
+```
+
+By default, the password reset screenshot targets the seeded admin user:
+
+- `superadmin@example.com`
+
+If you want to use a different existing user row for the reset-password screenshots, set:
+
+```bash
+RESET_TARGET_EMAIL=user@example.com
+```
+
+Useful step names:
+
+- `multilingual`
+- `multilingual-fr`
+- `multilingual-es`
+- `password-reset`
+- `role-view`
+- `create`
+- `update`
+- `listing`
+- `clear-session`
+- `dashboard`
+- `chat`
+- `login`
+- `register`
+
+If no step name is provided, the script runs the full capture flow.
+
 The chat demo is captured in several stages:
 
 - `event-confirmation.png` shows the assistant with a filled event draft and a save prompt

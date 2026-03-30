@@ -15,6 +15,12 @@ const appURL = process.env.APP_URL || 'http://localhost:3000';
 const apiURL = process.env.API_URL || 'http://localhost:5000/api';
 const adminEmail = process.env.TEST_ADMIN_EMAIL || 'testadmin@example.com';
 const adminPassword = process.env.TEST_ADMIN_PASSWORD || 'TestAdmin123!';
+const resetTargetEmail = process.env.RESET_TARGET_EMAIL || 'superadmin@example.com';
+const requestedSteps = new Set(process.argv.slice(2).map((value) => value.toLowerCase()));
+
+function shouldRun(step) {
+  return requestedSteps.size === 0 || requestedSteps.has('all') || requestedSteps.has(step);
+}
 
 async function ensureDir() {
   await fs.mkdir(screenshotDir, { recursive: true });
@@ -256,15 +262,21 @@ async function main() {
   const managerPassword = 'Manager123!';
   const apiEventName = `Manager Visibility Demo ${runTag}`;
   const chatEventName = `Leadership Workshop ${runTag}`;
+  const needsManagerAccount =
+    shouldRun('role-view') || requestedSteps.size === 0 || requestedSteps.has('all');
+  const needsApiEvent =
+    shouldRun('update') || shouldRun('role-view') || requestedSteps.size === 0 || requestedSteps.has('all');
 
-  await apiRegister({
-    firstName: 'Role',
-    lastName: 'Manager',
-    email: managerEmail,
-    phone: '555-111-2222',
-    password: managerPassword,
-    role: 'Manager',
-  });
+  if (needsManagerAccount) {
+    await apiRegister({
+      firstName: 'Role',
+      lastName: 'Manager',
+      email: managerEmail,
+      phone: '555-111-2222',
+      password: managerPassword,
+      role: 'Manager',
+    });
+  }
 
   let adminAuth;
   try {
@@ -274,25 +286,28 @@ async function main() {
     adminAuth = await apiLogin(adminEmail, adminPassword);
   }
   const adminToken = adminAuth.token;
+  let createdEvent = null;
 
-  const createdEventResponse = await apiCreateEvent(adminToken, {
-    name: apiEventName,
-    subheading: 'Role-based event example',
-    description: 'A sample event created for screenshot capture.',
-    banner_url: 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?auto=format&fit=crop&w=1400&q=80',
-    timezone: 'Asia/Katmandu',
-    status: 'Published',
-    start_time: '2026-04-01T10:00:00.000Z',
-    end_time: '2026-04-01T11:00:00.000Z',
-    vanish_time: '2026-04-02T11:00:00.000Z',
-    language: 'en',
-    roles: ['Manager', 'Sales Rep'],
-  });
+  if (needsApiEvent) {
+    const createdEventResponse = await apiCreateEvent(adminToken, {
+      name: apiEventName,
+      subheading: 'Role-based event example',
+      description: 'A sample event created for screenshot capture.',
+      banner_url: 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?auto=format&fit=crop&w=1400&q=80',
+      timezone: 'Asia/Katmandu',
+      status: 'Published',
+      start_time: '2026-04-01T10:00:00.000Z',
+      end_time: '2026-04-01T11:00:00.000Z',
+      vanish_time: '2026-04-02T11:00:00.000Z',
+      language: 'en',
+      roles: ['Manager', 'Sales Rep'],
+    });
 
-  const createdEvent =
-    createdEventResponse?.data?.event ||
-    createdEventResponse?.event ||
-    createdEventResponse;
+    createdEvent =
+      createdEventResponse?.data?.event ||
+      createdEventResponse?.event ||
+      createdEventResponse;
+  }
 
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
@@ -301,44 +316,75 @@ async function main() {
   });
   const page = await context.newPage();
 
-  await capture(page, 'login-screen.png', '/login');
-  await registerThroughUi(page, {
-    firstName: 'Fresh',
-    lastName: 'Manager',
-    email: `fresh.manager.${runTag}@example.com`,
-    phone: '555-111-2222',
-    password: 'Manager123!',
-    role: 'Manager',
-  });
+  if (shouldRun('login')) {
+    await capture(page, 'login-screen.png', '/login');
+  }
 
   await loginThroughUi(page, adminEmail, adminPassword);
-  await capture(page, 'admin-dashboard.png', '/admin/events');
-  await capture(page, 'chat-interface.png', '/admin/chat');
 
-  await demoEventCreation(page, chatEventName);
-  await capture(page, 'event-listing.png', '/admin/events');
+  if (shouldRun('register')) {
+    await registerThroughUi(page, {
+      firstName: 'Fresh',
+      lastName: 'Manager',
+      email: `fresh.manager.${runTag}@example.com`,
+      phone: '555-111-2222',
+      password: 'Manager123!',
+      role: 'Manager',
+    });
+    await loginThroughUi(page, adminEmail, adminPassword);
+  }
 
-  await demoEventUpdate(page, createdEvent?.id);
+  if (shouldRun('dashboard')) {
+    await capture(page, 'admin-dashboard.png', '/admin/events');
+  }
 
-  await demoMultilingualFlow(
-    page,
-    'fr',
-    `Bonjour, je veux créer un événement nommé Atelier Leadership ${runTag}. Le sous-titre est Développement d'équipe, la description est une session pour les responsables, le fuseau horaire est Asia/Katmandu, le statut est Brouillon, commence le 5 avril 2026 à 10h, termine à 12h, et les rôles sont Admin et Manager.`,
-    'multilingual-french.png'
-  );
+  if (shouldRun('chat')) {
+    await capture(page, 'chat-interface.png', '/admin/chat');
+  }
 
-  await demoMultilingualFlow(
-    page,
-    'es',
-    `Hola, quiero crear un evento llamado Taller de Ventas ${runTag}. El subtítulo es Equipo comercial, la descripción es una sesión para el equipo de ventas, la zona horaria es Asia/Katmandu, el estado es Borrador, comienza el 6 de abril de 2026 a las 10 AM, termina a las 12 PM, y los roles son Admin y Sales Rep.`,
-    'multilingual-spanish.png'
-  );
+  if (shouldRun('create')) {
+    await demoEventCreation(page, chatEventName);
+  }
 
-  await demoClearSession(page);
-  await loginThroughUi(page, managerEmail, managerPassword);
-  await capture(page, 'role-based-view.png', '/admin/events');
-  await loginThroughUi(page, adminEmail, adminPassword);
-  await demoAdminUsersFlow(page, managerEmail, 'Manager456!');
+  if (shouldRun('listing')) {
+    await capture(page, 'event-listing.png', '/admin/events');
+  }
+
+  if (shouldRun('update')) {
+    await demoEventUpdate(page, createdEvent?.id);
+  }
+
+  if (shouldRun('multilingual') || shouldRun('multilingual-fr')) {
+    await demoMultilingualFlow(
+      page,
+      'fr',
+      `Bonjour, je veux créer un événement nommé Atelier Leadership ${runTag}. Le sous-titre est Développement d'équipe, la description est une session pour les responsables, le fuseau horaire est Asia/Katmandu, le statut est Brouillon, commence le 5 avril 2026 à 10h, termine à 12h, et les rôles sont Admin et Manager.`,
+      'multilingual-french.png'
+    );
+  }
+
+  if (shouldRun('multilingual') || shouldRun('multilingual-es')) {
+    await demoMultilingualFlow(
+      page,
+      'es',
+      `Hola, quiero crear un evento llamado Taller de Ventas ${runTag}. El subtítulo es Equipo comercial, la descripción es una sesión para el equipo de ventas, la zona horaria es Asia/Katmandu, el estado es Borrador, comienza el 6 de abril de 2026 a las 10 AM, termina a las 12 PM, y los roles son Admin y Sales Rep.`,
+      'multilingual-spanish.png'
+    );
+  }
+
+  if (shouldRun('clear-session')) {
+    await demoClearSession(page);
+  }
+
+  if (shouldRun('role-view')) {
+    await loginThroughUi(page, managerEmail, managerPassword);
+    await capture(page, 'role-based-view.png', '/admin/events');
+    await loginThroughUi(page, adminEmail, adminPassword);
+  }
+
+  if (shouldRun('password-reset')) {
+    await demoAdminUsersFlow(page, resetTargetEmail, 'Admin456!');
+  }
 
   await browser.close();
 }
