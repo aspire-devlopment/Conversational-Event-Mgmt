@@ -18,7 +18,7 @@ erDiagram
         varchar email UNIQUE
         varchar contact_number
         text password_hash
-        int role_id FK
+        int role_id
         timestamp created_at
         timestamp updated_at
     }
@@ -35,19 +35,19 @@ erDiagram
         timestamp end_time
         timestamp vanish_time
         varchar language
-        int created_by FK
+        int created_by
         timestamp created_at
         timestamp updated_at
     }
 
     EVENT_ROLES {
-        int event_id PK, FK
-        int role_id PK, FK
+        int event_id
+        int role_id
     }
 
     CHAT_SESSIONS {
-        uuid id PK
-        int user_id FK
+        string id PK
+        int user_id
         jsonb session_data
         varchar current_step
         varchar language
@@ -58,7 +58,7 @@ erDiagram
 
     IDEMPOTENCY_KEYS {
         bigserial id PK
-        int user_id FK
+        int user_id
         varchar scope
         varchar idempotency_key
         varchar request_hash
@@ -72,7 +72,7 @@ erDiagram
 
     ERROR_LOGS {
         bigserial id PK
-        uuid trace_id
+        string trace_id
         varchar method
         text path
         int status_code
@@ -82,12 +82,12 @@ erDiagram
         timestamp created_at
     }
 
-    ROLES ||--o{ USERS : "role_id"
-    USERS ||--o{ EVENTS : "created_by"
-    USERS ||--o{ CHAT_SESSIONS : "user_id"
-    USERS ||--o{ IDEMPOTENCY_KEYS : "user_id"
-    EVENTS ||--o{ EVENT_ROLES : "event_id"
-    ROLES ||--o{ EVENT_ROLES : "role_id"
+    ROLES ||--o{ USERS : has
+    USERS ||--o{ EVENTS : creates
+    USERS ||--o{ CHAT_SESSIONS : owns
+    USERS ||--o{ IDEMPOTENCY_KEYS : uses
+    EVENTS ||--o{ EVENT_ROLES : includes
+    ROLES ||--o{ EVENT_ROLES : assigned
 ```
 
 ## Relationship Summary
