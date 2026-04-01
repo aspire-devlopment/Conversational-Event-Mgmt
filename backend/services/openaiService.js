@@ -347,10 +347,12 @@ async function callOpenRouter(messages, maxTokens = 500, language = 'en') {
   }
 }
 
-async function processMessage(userMessage, conversationHistory = [], currentEventData = {}, language = 'en') {
+async function processMessage(userMessage, conversationHistory = [], currentEventData = {}, language = 'en', options = {}) {
   try {
     // Merge the latest message with the current draft, then let the model fill gaps or apply corrections.
-    const detectedLanguage = detectLanguage(userMessage, currentEventData.language || language);
+    const detectedLanguage = options.languageLocked
+      ? normalizeLanguage(language || currentEventData.language)
+      : detectLanguage(userMessage, currentEventData.language || language);
     const draft = normalizeDraft(currentEventData, detectedLanguage);
     const systemPrompt = getSystemPrompt(detectedLanguage);
     const historyMessages = (conversationHistory || []).map((msg) => ({

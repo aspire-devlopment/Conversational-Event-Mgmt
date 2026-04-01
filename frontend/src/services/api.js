@@ -146,10 +146,10 @@ export const chatAPI = {
       body: { userId, language, eventId }
     }),
 
-  sendMessage: (userId, sessionId, message, language = 'en') =>
+  sendMessage: (userId, sessionId, message, language = 'en', languageLocked = false) =>
     apiClient('/chat/message', {
       method: 'POST',
-      body: { userId, sessionId, message, language }
+      body: { userId, sessionId, message, language, languageLocked }
     }),
 
   getSession: (sessionId) =>

@@ -193,6 +193,7 @@ const AdminChatPage = () => {
   const [eventCompleted, setEventCompleted] = useState(false);
   const [completionMode, setCompletionMode] = useState('create');
   const [language, setLanguage] = useState(detectBrowserLanguage());
+  const [languageLocked, setLanguageLocked] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [summary, setSummary] = useState('');
   const [mode, setMode] = useState(editingEventId ? 'update' : 'create');
@@ -322,9 +323,11 @@ const AdminChatPage = () => {
     setLoading(true);
 
     try {
-      const response = await chatAPI.sendMessage(user.id, sessionId, text, language);
+      const response = await chatAPI.sendMessage(user.id, sessionId, text, language, languageLocked);
       pushAssistantMessage(response.reply);
-      setLanguage(response.language || language);
+      if (!languageLocked) {
+        setLanguage(response.language || language);
+      }
       setSuggestions(response.suggestions || []);
       setSummary(response.summary || '');
       if (response.eventDraft) setEventDraft(response.eventDraft);
@@ -415,7 +418,10 @@ const AdminChatPage = () => {
           <div className="flex items-center gap-3">
             <select
               value={language}
-              onChange={(e) => setLanguage(e.target.value)}
+              onChange={(e) => {
+                setLanguage(e.target.value);
+                setLanguageLocked(true);
+              }}
               className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm focus:border-blue-400 focus:outline-none"
             >
               <option value="en">English</option>

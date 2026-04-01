@@ -204,7 +204,7 @@ const createChatController = (
     sendMessage: asyncHandler(async (req, res) => {
       // Main chat loop: save the user message, run the model, merge the draft, and commit when ready.
       const userId = req.user?.id;
-      const { sessionId, message } = req.body;
+      const { sessionId, message, languageLocked = false } = req.body;
       const requestLanguage = req.body.language || req.headers['accept-language'] || 'en';
       const chatCreateScope = 'chat:event:create';
       const chatCreateKey = `chat-create:${sessionId}`;
@@ -263,7 +263,8 @@ const createChatController = (
         message,
         conversationHistory,
         sessionData.event_draft,
-        requestLanguage
+        requestLanguage,
+        { languageLocked }
       );
 
       // Merge the AI result into the persisted draft before deciding whether to save.
