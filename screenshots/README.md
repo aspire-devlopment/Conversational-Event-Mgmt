@@ -8,13 +8,17 @@ Add the final project screenshots here using these filenames:
 - `admin-dashboard.png`
 - `chat-interface.png`
 - `event-confirmation.png`
+- `event-update-conversation.png`
 - `event-update.png`
 - `event-listing.png`
 - `role-based-view.png`
 - `multilingual-french.png`
 - `multilingual-spanish.png`
+- `multilingual-french-success.png`
+- `multilingual-spanish-success.png`
 - `clear-chat-session.png`
 - `conversation-flow.png`
+- `conversation-flow-stepwise.png`
 
 Recommended capture order:
 
@@ -24,13 +28,17 @@ Recommended capture order:
 4. Admin dashboard landing page
 5. Chat interface before event creation
 6. Event confirmation step after all event fields are entered
-7. Event update screen after a correction is saved
-8. Event listing page showing created events
-9. Role-based view for Manager or Sales Rep
-10. Multilingual chat flow in French
-11. Multilingual chat flow in Spanish
-12. Cleared chat session with a fresh conversation
-13. Complete conversation flow from start to save
+7. Event update conversation before confirmation
+8. Event update screen after a correction is saved
+9. Event listing page showing created events
+10. Role-based view for Manager or Sales Rep
+11. Multilingual chat flow in French
+12. Multilingual chat flow in Spanish
+13. Multilingual French flow after successful save
+14. Multilingual Spanish flow after successful save
+15. Cleared chat session with a fresh conversation
+16. Complete conversation flow from start to save
+17. Stepwise conversation flow using 2 to 3 chat messages
 
 Keep the screenshots clean and readable:
 
@@ -80,12 +88,16 @@ Useful step names:
 - `multilingual`
 - `multilingual-fr`
 - `multilingual-es`
+- `multilingual-success`
+- `multilingual-success-fr`
+- `multilingual-success-es`
 - `password-reset`
 - `role-view`
 - `create`
 - `update`
 - `listing`
 - `clear-session`
+- `conversation-stepwise`
 - `dashboard`
 - `chat`
 - `login`
@@ -96,7 +108,10 @@ If no step name is provided, the script runs the full capture flow.
 The chat demo is captured in several stages:
 
 - `event-confirmation.png` shows the assistant with a filled event draft and a save prompt
-- `event-update.png` shows the assistant applying a correction to an existing event
+- `event-update-conversation.png` shows the update conversation for the same event before final save
+- `event-update.png` shows the successful save state of that same updated event
 - `multilingual-french.png` and `multilingual-spanish.png` show language-aware chat replies
+- `multilingual-french-success.png` and `multilingual-spanish-success.png` show multilingual event save success states
 - `clear-chat-session.png` shows the chat reset to a fresh session
 - `conversation-flow.png` shows the same conversation after the event is saved successfully
+- `conversation-flow-stepwise.png` shows event creation collected naturally across 2 to 3 chat messages

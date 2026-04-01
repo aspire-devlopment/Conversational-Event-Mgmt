@@ -191,7 +191,15 @@ Once the images are added, this document will render them automatically.
 
 ### Event Update
 
+This screenshot shows the final saved state of the same event that appears in the update conversation flow below.
+
 ![Event Update](screenshots/event-update.png)
+
+### Event Update Conversation Flow
+
+This screenshot captures the same event during the update conversation before the final save is confirmed.
+
+![Event Update Conversation Flow](screenshots/event-update-conversation.png)
 
 ### Event Listing Page
 
@@ -208,6 +216,14 @@ Once the images are added, this document will render them automatically.
 ### Multilingual Flow - Spanish
 
 ![Multilingual Spanish](screenshots/multilingual-spanish.png)
+
+### Multilingual Save Success - French
+
+![Multilingual French Save Success](screenshots/multilingual-french-success.png)
+
+### Multilingual Save Success - Spanish
+
+![Multilingual Spanish Save Success](screenshots/multilingual-spanish-success.png)
 
 ### Clear Chat Session
 
@@ -228,6 +244,12 @@ Once the images are added, this document will render them automatically.
 ### Conversation Flow
 
 ![Conversation Flow](screenshots/conversation-flow.png)
+
+### Stepwise Conversation Flow
+
+This screenshot shows event creation happening across 2 to 3 natural chat messages instead of a single long input.
+
+![Stepwise Conversation Flow](screenshots/conversation-flow-stepwise.png)
 
 ## 7. Conclusion
 
