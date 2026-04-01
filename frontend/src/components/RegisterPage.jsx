@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Eye, EyeOff, Mail, Lock, User, Phone, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, useToggle } from '../hooks/useForm';
@@ -31,48 +31,54 @@ const RegisterPage = () => {
   /**
    * Extended validators for registration form
    */
-  const extendedValidators = {
-    ...validators,
-    firstName: (value) => {
-      if (!value) return 'First name is required';
-      if (value.length < 2) return 'First name must be at least 2 characters';
-      if (!/^[a-zA-Z\s]+$/.test(value)) {
-        return 'First name can only contain letters';
-      }
-      return '';
-    },
-    lastName: (value) => {
-      if (!value) return 'Last name is required';
-      if (value.length < 2) return 'Last name must be at least 2 characters';
-      if (!/^[a-zA-Z\s]+$/.test(value)) {
-        return 'Last name can only contain letters';
-      }
-      return '';
-    },
-    phone: (value) => {
-      if (!value) return 'Contact number is required';
-      if (!/^[\d\s\-+()]{10,}$/.test(value)) {
-        return 'Please enter a valid contact number';
-      }
-      return '';
-    },
-    role: (value) => {
-      if (!value) return 'Please select a role';
-      return '';
-    },
-  };
+  const extendedValidators = useMemo(
+    () => ({
+      ...validators,
+      firstName: (value) => {
+        if (!value) return 'First name is required';
+        if (value.length < 2) return 'First name must be at least 2 characters';
+        if (!/^[a-zA-Z\s]+$/.test(value)) {
+          return 'First name can only contain letters';
+        }
+        return '';
+      },
+      lastName: (value) => {
+        if (!value) return 'Last name is required';
+        if (value.length < 2) return 'Last name must be at least 2 characters';
+        if (!/^[a-zA-Z\s]+$/.test(value)) {
+          return 'Last name can only contain letters';
+        }
+        return '';
+      },
+      phone: (value) => {
+        if (!value) return 'Contact number is required';
+        if (!/^[\d\s\-+()]{10,}$/.test(value)) {
+          return 'Please enter a valid contact number';
+        }
+        return '';
+      },
+      role: (value) => {
+        if (!value) return 'Please select a role';
+        return '';
+      },
+    }),
+    []
+  );
 
   /**
    * Memoized validation rules for registration form
    */
-  const validationRules = {
-    firstName: extendedValidators.firstName,
-    lastName: extendedValidators.lastName,
-    email: extendedValidators.email,
-    phone: extendedValidators.phone,
-    role: extendedValidators.role,
-    password: extendedValidators.password,
-  };
+  const validationRules = useMemo(
+    () => ({
+      firstName: extendedValidators.firstName,
+      lastName: extendedValidators.lastName,
+      email: extendedValidators.email,
+      phone: extendedValidators.phone,
+      role: extendedValidators.role,
+      password: extendedValidators.password,
+    }),
+    [extendedValidators]
+  );
 
   /**
    * Initialize form hook with registration fields
