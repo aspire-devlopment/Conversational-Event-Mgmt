@@ -47,6 +47,7 @@ const LoginPage = () => {
     handleSubmit: handleFormSubmit,
     resetForm,
     setErrors,
+    setTouched,
   } = useForm(
     { email: '', password: '', rememberMe: false },
     handleSubmitForm
@@ -112,10 +113,14 @@ const LoginPage = () => {
       if (!hasErrors(validationErrors)) {
         handleFormSubmit(e);
       } else {
+        setTouched({
+          email: true,
+          password: true,
+        });
         e.preventDefault();
       }
     },
-    [values, validationRules, handleFormSubmit, setErrors]
+    [values, validationRules, handleFormSubmit, setErrors, setTouched]
   );
 
   return (
