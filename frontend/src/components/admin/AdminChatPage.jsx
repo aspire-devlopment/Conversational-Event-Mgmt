@@ -201,17 +201,19 @@ const AdminChatPage = () => {
   const initialLanguageRef = useRef(language);
   const languageSelection = languageLocked ? language : 'auto';
 
-  const createFreshSession = useCallback(async (activeLanguage = language) => {
+  const createFreshSession = useCallback(async (activeLanguage) => {
     // Start a clean session when the user opens chat, clears it, or the backend session disappears.
     if (!user?.id) {
       throw new Error('User is not ready');
     }
 
-    const response = await chatAPI.createSession(user.id, activeLanguage, editingEventId);
+    const sessionLanguage = activeLanguage || initialLanguageRef.current;
+
+    const response = await chatAPI.createSession(user.id, sessionLanguage, editingEventId);
     const storageKey = getSessionStorageKey(user.id, editingEventId);
 
     setSessionId(response.sessionId);
-    setLanguage(response.language || activeLanguage);
+    setLanguage(response.language || sessionLanguage);
     setSuggestions(response.suggestions || []);
     setSummary(response.summary || '');
     setEventDraft(response.eventDraft || null);
@@ -227,7 +229,7 @@ const AdminChatPage = () => {
     ]);
 
     return response;
-  }, [editingEventId, language, user?.id]);
+  }, [editingEventId, user?.id]);
 
   useEffect(() => {
     const initializeSession = async () => {
