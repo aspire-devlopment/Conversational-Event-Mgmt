@@ -93,6 +93,7 @@ const RegisterPage = () => {
     handleSubmit: handleFormSubmit,
     resetForm,
     setErrors,
+    setTouched,
   } = useForm(
     {
       firstName: '',
@@ -168,10 +169,18 @@ const RegisterPage = () => {
       if (!hasErrors(validationErrors)) {
         handleFormSubmit(e);
       } else {
+        setTouched({
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          role: true,
+          password: true,
+        });
         e.preventDefault();
       }
     },
-    [values, validationRules, handleFormSubmit, setErrors]
+    [values, validationRules, handleFormSubmit, setErrors, setTouched]
   );
 
   return (

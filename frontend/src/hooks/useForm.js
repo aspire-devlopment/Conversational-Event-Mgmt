@@ -65,6 +65,7 @@ export const useForm = (initialValues, onSubmit) => {
     handleSubmit,
     resetForm,
     setErrors,
+    setTouched,
     setValues,
   };
 };
