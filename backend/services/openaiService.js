@@ -102,7 +102,7 @@ function getSystemPrompt(language = 'en', options = {}) {
     fr: 'Respond in French.',
   }[normalizeLanguage(language)];
   const lockRule = options.languageLocked
-    ? `Do not switch languages even if the user writes in another language. Set "language" to "${normalizeLanguage(language)}".`
+    ? `Do not switch languages even if the user writes in another language. Always reply in ${normalizeLanguage(language)} and set "language" to "${normalizeLanguage(language)}".`
     : '';
 
   return `You are an AI assistant that creates virtual events entirely through chat.
@@ -365,7 +365,7 @@ async function processMessage(userMessage, conversationHistory = [], currentEven
       content: msg.content || msg.text || '',
     }));
 
-    const contextMessage = `Current event data:\n${buildSummary(draft)}\n\nSupported timezones: ${COMMON_TIMEZONES.join(', ')}\nSupported statuses: ${STATUS_VALUES.join(', ')}\nSupported roles: ${SUPPORTED_ROLES.join(', ')}\n\nLatest user message: "${userMessage}"`;
+    const contextMessage = `${options.languageLocked ? `Manual language override is active. Reply only in ${effectiveLanguage}.\n\n` : ''}Current event data:\n${buildSummary(draft)}\n\nSupported timezones: ${COMMON_TIMEZONES.join(', ')}\nSupported statuses: ${STATUS_VALUES.join(', ')}\nSupported roles: ${SUPPORTED_ROLES.join(', ')}\n\nLatest user message: "${userMessage}"`;
 
     const messages = [
       { role: 'system', content: systemPrompt },
