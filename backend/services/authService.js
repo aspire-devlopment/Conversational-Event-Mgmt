@@ -85,6 +85,19 @@ class AuthService {
         throw error;
       }
 
+      const selectedRole = await this.userRepository.dataContext.query(
+        'SELECT id, name FROM roles WHERE name = $1 LIMIT 1',
+        [role]
+      );
+
+      if (!selectedRole[0]?.id) {
+        const error = new Error(
+          `Registration failed because role "${role}" was not found in the database`
+        );
+        error.statusCode = 500;
+        throw error;
+      }
+
       const hashedPassword = await hashPassword(password);
 
       const newUser = await this.userRepository.create({
@@ -93,13 +106,11 @@ class AuthService {
         email: normalizedEmail,
         contact_number: phone,
         password_hash: hashedPassword,
-        role,
+        role_id: selectedRole[0].id,
       });
 
       if (!newUser) {
-        const error = new Error(
-          'Registration failed because the selected role is not available in the database'
-        );
+        const error = new Error('Registration failed because the user record could not be created');
         error.statusCode = 500;
         throw error;
       }

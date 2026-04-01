@@ -49,20 +49,9 @@ class UserRepository {
 
   async create(payload) {
     const q = `
-      WITH inserted AS (
-        INSERT INTO users (first_name, last_name, email, contact_number, password_hash, role_id)
-        VALUES (
-          $1,
-          $2,
-          $3,
-          $4,
-          $5,
-          (SELECT id FROM roles WHERE name = $6)
-        )
-        RETURNING id
-      )
-      ${this.baseSelectSql()}
-      WHERE u.id = (SELECT id FROM inserted)
+      INSERT INTO users (first_name, last_name, email, contact_number, password_hash, role_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id
     `;
     const values = [
       payload.first_name,
@@ -70,10 +59,12 @@ class UserRepository {
       payload.email,
       payload.contact_number || null,
       payload.password_hash || null,
-      payload.role || null,
+      payload.role_id || null,
     ];
     const rows = await this.dataContext.query(q, values);
-    return rows[0] || null;
+    const insertedId = rows[0]?.id;
+    if (!insertedId) return null;
+    return this.getById(insertedId);
   }
 
   async update(id, payload) {
