@@ -272,6 +272,7 @@ const createChatController = (
         llmResponse.extractedData,
         llmResponse.language || requestLanguage
       );
+      eventDraft.language = llmResponse.language || requestLanguage;
 
       await chatSessionRepository.update(sessionId, {
         session_data: {

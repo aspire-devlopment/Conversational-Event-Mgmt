@@ -358,6 +358,7 @@ async function processMessage(userMessage, conversationHistory = [], currentEven
       ? normalizeLanguage(language || currentEventData.language)
       : detectLanguage(userMessage, currentEventData.language || language);
     const draft = normalizeDraft(currentEventData, effectiveLanguage);
+    draft.language = effectiveLanguage;
     const systemPrompt = getSystemPrompt(effectiveLanguage, options);
     const historyMessages = (conversationHistory || []).map((msg) => ({
       role: msg.role === 'assistant' || msg.role === 'bot' ? 'assistant' : 'user',
@@ -386,12 +387,16 @@ async function processMessage(userMessage, conversationHistory = [], currentEven
       ? effectiveLanguage
       : (llmResponse.language || effectiveLanguage);
     const mergedDraft = mergeDraft(draft, llmResponse.extractedData, responseLanguage);
+    mergedDraft.language = responseLanguage;
     const nextStep = llmResponse.nextStep || getNextStep(mergedDraft);
 
     return {
       ...llmResponse,
       language: responseLanguage,
-      extractedData: mergedDraft,
+      extractedData: {
+        ...mergedDraft,
+        language: responseLanguage,
+      },
       nextStep: nextStep === 'confirm' ? getNextStep(mergedDraft) : nextStep,
       suggestions: getSuggestions(nextStep, responseLanguage),
       summary: buildSummary(mergedDraft),
