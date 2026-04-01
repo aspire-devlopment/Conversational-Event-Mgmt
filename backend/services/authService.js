@@ -96,6 +96,14 @@ class AuthService {
         role,
       });
 
+      if (!newUser) {
+        const error = new Error(
+          'Registration failed because the selected role is not available in the database'
+        );
+        error.statusCode = 500;
+        throw error;
+      }
+
       const token = JWTTokenService.generateToken({
         id: newUser.id,
         email: newUser.email,
