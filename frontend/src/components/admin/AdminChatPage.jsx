@@ -312,6 +312,31 @@ const AdminChatPage = () => {
     ]);
   };
 
+  const handleLanguageChange = async (nextValue) => {
+    if (nextValue === 'auto') {
+      setLanguageLocked(false);
+      return;
+    }
+
+    setLanguage(nextValue);
+    setLanguageLocked(true);
+
+    const hasUserMessages = messages.some((message) => message.role === 'user');
+    if (hasUserMessages || initializing || loading) {
+      return;
+    }
+
+    try {
+      setInitializing(true);
+      setError(null);
+      await createFreshSession(nextValue);
+    } catch (err) {
+      setError(`Failed to switch chat language: ${err.message}`);
+    } finally {
+      setInitializing(false);
+    }
+  };
+
   const handleSendMessage = async (presetMessage) => {
     // Send one chat turn to the backend and let it decide the next prompt.
     const text = (presetMessage ?? draft).trim();
@@ -422,12 +447,7 @@ const AdminChatPage = () => {
             <select
               value={languageSelection}
               onChange={(e) => {
-                if (e.target.value === 'auto') {
-                  setLanguageLocked(false);
-                  return;
-                }
-                setLanguage(e.target.value);
-                setLanguageLocked(true);
+                handleLanguageChange(e.target.value);
               }}
               className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm focus:border-blue-400 focus:outline-none"
             >
