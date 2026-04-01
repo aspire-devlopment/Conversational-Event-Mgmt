@@ -48,10 +48,10 @@ function buildFieldInfo() {
 
 function getCommitSuccessMessage(language = 'en', isUpdate = false) {
   const normalized = openaiService.normalizeLanguage(language);
-  if (normalized === 'es') {
+  if (normalized === 'de') {
     return isUpdate
-      ? 'El evento se actualizo correctamente.'
-      : 'El evento se creo correctamente.';
+      ? 'Die Veranstaltung wurde erfolgreich aktualisiert.'
+      : 'Die Veranstaltung wurde erfolgreich erstellt.';
   }
   if (normalized === 'fr') {
     return isUpdate
@@ -105,7 +105,7 @@ function isConfirmationMessage(message = '') {
     "c'est bon",
     "d'accord",
     'oui',
-    'si',
+    'ja',
     'sí',
     'adelante',
   ];
@@ -445,8 +445,8 @@ const createChatController = (
         const language = openaiService.normalizeLanguage(llmResponse.language || requestLanguage);
         const missingText = validation.missingFields.join(', ');
         const errorText = validation.errors.join(', ');
-        reply = language === 'es'
-          ? `Aun faltan algunos datos antes de crear el evento. Campos faltantes: ${missingText || 'ninguno'}. Errores: ${errorText || 'ninguno'}.`
+        reply = language === 'de'
+          ? `Vor dem Erstellen der Veranstaltung fehlen noch einige Angaben. Fehlende Felder: ${missingText || 'keine'}. Fehler: ${errorText || 'keine'}.`
           : language === 'fr'
             ? `Il manque encore des informations avant de creer l evenement. Champs manquants : ${missingText || 'aucun'}. Erreurs : ${errorText || 'aucune'}.`
             : `We still need a few details before creating the event. Missing fields: ${missingText || 'none'}. Errors: ${errorText || 'none'}.`;

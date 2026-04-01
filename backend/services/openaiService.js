@@ -98,7 +98,7 @@ function getSystemPrompt(language = 'en') {
   // The prompt defines the chat contract: what fields to collect and how to respond.
   const responseRule = {
     en: 'Respond in English.',
-    es: 'Respond in Spanish.',
+    de: 'Respond in German.',
     fr: 'Respond in French.',
   }[normalizeLanguage(language)];
 
@@ -121,14 +121,14 @@ Rules:
 - Use the full conversation and current draft.
 - Understand corrections like "change start date", "set roles to Admin and Viewer", and "publish it".
 - Treat roles as a required multi-select field. Preserve multiple selected roles when the user provides them.
-- Understand relative dates such as "next Monday", "this Friday at 4 PM", "in 2 days", "tomorrow 3pm", "demain 14h", "dans 2 jours", or "manana 10 am".
+- Understand relative dates such as "next Monday", "this Friday at 4 PM", "in 2 days", "tomorrow 3pm", "demain 14h", "dans 2 jours", or "morgen 10 uhr".
 - Keep already confirmed values unless the user changes them.
 - Return JSON only.
 
 Schema:
 {
   "intent": "collect|update|confirm|clarify|cancel",
-  "language": "en|es|fr",
+  "language": "en|de|fr",
   "extractedData": {
     "name": "string or null",
     "subheading": "string or null",
@@ -404,7 +404,7 @@ async function processMessage(userMessage, conversationHistory = [], currentEven
 async function generateGreeting(language = 'en') {
   // Build the first message the admin sees when a chat session starts.
   const detectedLanguage = normalizeLanguage(language);
-  const responseLanguage = detectedLanguage === 'es' ? 'Spanish' : detectedLanguage === 'fr' ? 'French' : 'English';
+  const responseLanguage = detectedLanguage === 'de' ? 'German' : detectedLanguage === 'fr' ? 'French' : 'English';
   const prompt = `Generate a concise, professional opening message for a business event creation assistant. Ask for the event name first. Briefly mention that you can also help with timezone, banner URL, scheduling, publication status, and roles. Avoid emojis, avoid overly casual wording, and keep the tone polished and helpful. Respond in ${responseLanguage} with JSON using keys intent, language, extractedData, changedFields, nextStep, message, confidence.`;
 
   try {
@@ -423,7 +423,7 @@ async function generateGreeting(language = 'en') {
 
     const greetings = {
       en: 'Welcome. I can help you create a virtual event. What would you like to name the event?',
-      es: 'Bienvenido. Puedo ayudarle a crear un evento virtual. Como le gustaria llamar al evento?',
+      de: 'Willkommen. Ich kann Ihnen helfen, eine virtuelle Veranstaltung zu erstellen. Wie moechten Sie die Veranstaltung nennen?',
       fr: "Bienvenue. Je peux vous aider a creer un evenement virtuel. Quel nom souhaitez-vous donner a l evenement ?",
     };
 

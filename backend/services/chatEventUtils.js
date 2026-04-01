@@ -1,6 +1,6 @@
 const { COMMON_TIMEZONES, EVENT_STATUS } = require('../constants/eventConfig');
 const { ALL_ROLES } = require('../constants/appConfig');
-const SUPPORTED_LANGUAGES = ['en', 'es', 'fr'];
+const SUPPORTED_LANGUAGES = ['en', 'de', 'fr'];
 const SUPPORTED_ROLES = ALL_ROLES;
 const STATUS_VALUES = Object.values(EVENT_STATUS);
 // Shared field metadata keeps the assistant wording, validation, and UI labels aligned.
@@ -30,18 +30,18 @@ const EVENT_FIELD_INFO = {
 };
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const DAY_ALIASES = {
-  sunday: ['sunday', 'domingo', 'dimanche'],
-  monday: ['monday', 'lunes', 'lundi'],
-  tuesday: ['tuesday', 'martes', 'mardi'],
-  wednesday: ['wednesday', 'miercoles', 'mercredi'],
-  thursday: ['thursday', 'jueves', 'jeudi'],
-  friday: ['friday', 'viernes', 'vendredi'],
-  saturday: ['saturday', 'sabado', 'samedi'],
+  sunday: ['sunday', 'sonntag', 'dimanche'],
+  monday: ['monday', 'montag', 'lundi'],
+  tuesday: ['tuesday', 'dienstag', 'mardi'],
+  wednesday: ['wednesday', 'mittwoch', 'mercredi'],
+  thursday: ['thursday', 'donnerstag', 'jeudi'],
+  friday: ['friday', 'freitag', 'vendredi'],
+  saturday: ['saturday', 'samstag', 'samedi'],
 };
 const LANGUAGE_MARKERS = {
-  es: [
-    ' hola ', ' gracias ', ' evento ', ' zona horaria ', ' manana ',
-    ' proximo ', ' proxima ', ' hoy ', ' dentro de ', ' publicar ',
+  de: [
+    ' hallo ', ' danke ', ' veranstaltung ', ' zeitzone ', ' morgen ',
+    ' nachste ', ' naechste ', ' heute ', ' in ', ' veroffentlichen ',
   ],
   fr: [
     ' bonjour ', ' merci ', ' evenement ', ' fuseau ', ' demain ',
@@ -62,7 +62,7 @@ function normalizeText(value) {
 function normalizeLanguage(language) {
   // Keep every language value in a canonical short form for downstream logic.
   const value = String(language || '').toLowerCase();
-  if (value.startsWith('es')) return 'es';
+  if (value.startsWith('de')) return 'de';
   if (value.startsWith('fr')) return 'fr';
   return 'en';
 }
@@ -112,7 +112,7 @@ function normalizeRole(role) {
 
 function parseRoleList(input) {
   // Multi-select roles may arrive as an array or a natural-language list.
-  const values = Array.isArray(input) ? input : String(input || '').split(/,|and|y|et|\//i);
+  const values = Array.isArray(input) ? input : String(input || '').split(/,|and|und|et|\//i);
   return [...new Set(values.map((item) => normalizeRole(item)).filter(Boolean))];
 }
 
@@ -148,7 +148,7 @@ function normalizeTimezone(timezone) {
 function parseAbsoluteDateTime(value) {
   const rawValue = String(value || '').trim();
   const normalizedValue = normalizeText(rawValue);
-  const looksRelative = /\btoday\b|\btomorrow\b|\bday after tomorrow\b|\bnext\b|\bthis\b|\bin\s+\d+\b|\bwithin\b|\bhoy\b|\bmanana\b|\bpasado manana\b|\bproximo\b|\bproxima\b|\bdentro de\b|\bdemain\b|\bapres demain\b|\bprochain\b|\bprochaine\b|\bdans\b/.test(normalizedValue);
+  const looksRelative = /\btoday\b|\btomorrow\b|\bday after tomorrow\b|\bnext\b|\bthis\b|\bin\s+\d+\b|\bwithin\b|\bheute\b|\bmorgen\b|\bubermorgen\b|\buebermorgen\b|\bnachste\b|\bnaechste\b|\bdemain\b|\bapres demain\b|\bprochain\b|\bprochaine\b|\bdans\b/.test(normalizedValue);
   const looksAbsolute = /\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?/.test(rawValue);
   if (!rawValue || looksRelative || !looksAbsolute) return null;
 
@@ -200,9 +200,9 @@ function parseRelativeAmount(text, baseDate) {
   const patterns = [
     /\bin\s+(\d+)\s+(hour|hours|day|days|week|weeks)\b/,
     /\bwithin\s+(\d+)\s+(hour|hours|day|days|week|weeks)\b/,
-    /\bdentro de\s+(\d+)\s+(hora|horas|dia|dias|semana|semanas)\b/,
-    /\ben\s+(\d+)\s+(hora|horas|dia|dias|semaine|semaines|jour|jours)\b/,
-    /\bdans\s+(\d+)\s+(heure|heures|jour|jours|semaine|semaines)\b/,
+      /\bin\s+(\d+)\s+(stunde|stunden|tag|tage|woche|wochen)\b/,
+      /\ben\s+(\d+)\s+(hora|horas|dia|dias|semaine|semaines|jour|jours)\b/,
+      /\bdans\s+(\d+)\s+(heure|heures|jour|jours|semaine|semaines)\b/,
   ];
 
   for (const pattern of patterns) {
@@ -210,9 +210,9 @@ function parseRelativeAmount(text, baseDate) {
     if (!match) continue;
     const amount = Number(match[1]);
     const rawUnit = match[2];
-    const normalizedUnit = rawUnit.startsWith('hour') || rawUnit.startsWith('hora') || rawUnit.startsWith('heure')
+    const normalizedUnit = rawUnit.startsWith('hour') || rawUnit.startsWith('stunde') || rawUnit.startsWith('hora') || rawUnit.startsWith('heure')
       ? 'hour'
-      : rawUnit.startsWith('week') || rawUnit.startsWith('semaine') || rawUnit.startsWith('semana')
+      : rawUnit.startsWith('week') || rawUnit.startsWith('woche') || rawUnit.startsWith('semaine') || rawUnit.startsWith('semana')
         ? 'week'
         : 'day';
     return addRelativeAmount(baseDate, amount, normalizedUnit);
@@ -226,26 +226,26 @@ function parseRelativeDate(value, baseDate = new Date()) {
   const date = new Date(baseDate);
   const { hours, minutes, hasExplicitTime } = parseTimePart(text);
 
-  if (/\btoday\b|\bhoy\b|\baujourd hui\b/.test(text)) {
+  if (/\btoday\b|\bheute\b|\baujourd hui\b/.test(text)) {
     date.setHours(hours, minutes, 0, 0);
     return date;
   }
-  if (/\btomorrow\b|\bmanana\b|\bdemain\b/.test(text)) {
+  if (/\btomorrow\b|\bmorgen\b|\bdemain\b/.test(text)) {
     date.setDate(date.getDate() + 1);
     date.setHours(hours, minutes, 0, 0);
     return date;
   }
-  if (/\bday after tomorrow\b|\bpasado manana\b|\bapres demain\b/.test(text)) {
+  if (/\bday after tomorrow\b|\bubermorgen\b|\buebermorgen\b|\bapres demain\b/.test(text)) {
     date.setDate(date.getDate() + 2);
     date.setHours(hours, minutes, 0, 0);
     return date;
   }
-  if (/\bnext week\b|\bproxima semana\b|\bsemaine prochaine\b/.test(text)) {
+  if (/\bnext week\b|\bnachste woche\b|\bnaechste woche\b|\bsemaine prochaine\b/.test(text)) {
     date.setDate(date.getDate() + 7);
     date.setHours(hours, minutes, 0, 0);
     return date;
   }
-  if (/\bthis week\b|\besta semana\b|\bcette semaine\b/.test(text)) {
+  if (/\bthis week\b|\bdiese woche\b|\bcette semaine\b/.test(text)) {
     date.setHours(hours, minutes, 0, 0);
     return date;
   }
@@ -262,7 +262,7 @@ function parseRelativeDate(value, baseDate = new Date()) {
     const day = WEEKDAYS[index];
     const aliases = DAY_ALIASES[day] || [day];
     if (aliases.some((item) => text.includes(` ${item} `))) {
-      if (/\bthis\b|\beste\b|\bcette\b|\bce\b/.test(text)) {
+        if (/\bthis\b|\bdiese[rmns]?\b|\bcette\b|\bce\b/.test(text)) {
         const today = date.getDay();
         if (today <= index) {
           const currentWeek = new Date(date);
@@ -274,7 +274,7 @@ function parseRelativeDate(value, baseDate = new Date()) {
       const next = shiftToWeekday(
         date,
         index,
-        /\bnext\b|\bproximo\b|\bproxima\b|\bprochain\b|\bprochaine\b/.test(text)
+        /\bnext\b|\bnachste\b|\bnaechste\b|\bprochain\b|\bprochaine\b/.test(text)
       );
       next.setHours(hours, minutes, 0, 0);
       return next;
@@ -353,17 +353,17 @@ function mergeDraft(currentDraft, extractedData, language) {
 
   if ((merged.startTime || current.startTime) && rawEndText) {
     const startAnchor = merged.startTime || current.startTime;
-    if (/same day|one hour later|later today|une heure apres|una hora despues/.test(rawEndText)) {
+    if (/same day|one hour later|later today|eine stunde spater|eine stunde spaeter|une heure apres/.test(rawEndText)) {
       merged.endTime = addHours(startAnchor, 1);
     }
   }
 
   if ((merged.endTime || current.endTime) && rawVanishText) {
     const anchor = merged.endTime || current.endTime;
-    if (/one day after end|day after end|un dia despues del fin|un jour apres la fin/.test(rawVanishText)) {
+    if (/one day after end|day after end|einen tag nach ende|un jour apres la fin/.test(rawVanishText)) {
       merged.vanishTime = addDays(anchor, 1);
     }
-    if (/one week after end|week after end|una semana despues del fin|une semaine apres la fin/.test(rawVanishText)) {
+    if (/one week after end|week after end|eine woche nach ende|une semaine apres la fin/.test(rawVanishText)) {
       merged.vanishTime = addDays(anchor, 7);
     }
   }
@@ -425,7 +425,7 @@ function getSuggestions(step, language = 'en') {
        vanishTime: ['One day after end', 'One week after end'],
        confirm: ['Create event', 'Change start time', 'Change roles'],
      },
-     es: {
+     de: {
        name: ['Conferencia Tecnológica Anual 2024', 'Evento de Lanzamiento de Producto', 'Taller de Construcción de Equipo'],
        subheading: ['Únete a nosotros para una experiencia emocionante', 'Conecta con líderes de la industria', 'Aprende y crece juntos'],
        description: ['Un evento integral que cubre las últimas tendencias e innovaciones de la industria', 'Conecta con profesionales y expande tu red', 'Sesiones interactivas con oradores expertos y talleres prácticos'],
@@ -433,10 +433,10 @@ function getSuggestions(step, language = 'en') {
        timezone: COMMON_TIMEZONES,
        status: ['Draft', 'Published', 'Pending'],
        roles: SUPPORTED_ROLES,
-       startTime: ['Manana 10 AM', 'Proximo lunes 2 PM', 'Dentro de 2 dias a las 4 PM'],
-       endTime: ['Manana 11 AM', 'El mismo dia una hora despues'],
-       vanishTime: ['Un dia despues del fin', 'Una semana despues del fin'],
-       confirm: ['Crear evento', 'Cambiar inicio', 'Cambiar roles'],
+       startTime: ['Morgen 10 Uhr', 'Naechsten Montag 14 Uhr', 'In 2 Tagen um 16 Uhr'],
+       endTime: ['Morgen 11 Uhr', 'Am selben Tag eine Stunde spaeter'],
+       vanishTime: ['Einen Tag nach Ende', 'Eine Woche nach Ende'],
+       confirm: ['Veranstaltung erstellen', 'Startzeit aendern', 'Rollen aendern'],
      },
      fr: {
        name: ['Conférence Technologique Annuelle 2024', 'Événement de Lancement de Produit', 'Atelier de Renforcement d\'Équipe'],

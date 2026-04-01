@@ -4,12 +4,12 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { chatAPI } from '../../services/api';
 
-const getSessionStorageKey = (userId, language, eventId) =>
-  `admin-chat-session:${userId}:${language}:${eventId || 'new'}`;
+const getSessionStorageKey = (userId, eventId) =>
+  `admin-chat-session:${userId}:${eventId || 'new'}`;
 
 const detectBrowserLanguage = () => {
   const locale = (navigator.language || 'en').toLowerCase();
-  if (locale.startsWith('es')) return 'es';
+  if (locale.startsWith('de')) return 'de';
   if (locale.startsWith('fr')) return 'fr';
   return 'en';
 };
@@ -205,9 +205,10 @@ const AdminChatPage = () => {
     }
 
     const response = await chatAPI.createSession(user.id, activeLanguage, editingEventId);
-    const storageKey = getSessionStorageKey(user.id, activeLanguage, editingEventId);
+    const storageKey = getSessionStorageKey(user.id, editingEventId);
 
     setSessionId(response.sessionId);
+    setLanguage(response.language || activeLanguage);
     setSuggestions(response.suggestions || []);
     setSummary(response.summary || '');
     setEventDraft(response.eventDraft || null);
@@ -240,7 +241,7 @@ const AdminChatPage = () => {
           return;
         }
 
-        const storageKey = getSessionStorageKey(user.id, language, editingEventId);
+        const storageKey = getSessionStorageKey(user.id, editingEventId);
         const storedSessionId = localStorage.getItem(storageKey);
 
         if (storedSessionId) {
@@ -248,6 +249,7 @@ const AdminChatPage = () => {
             const response = await chatAPI.getSession(storedSessionId);
             const session = response.data;
             setSessionId(session.sessionId);
+            setLanguage(session.language || language);
             setEventDraft(session.eventDraft || null);
             setSuggestions(session.suggestions || []);
             setSummary(session.summary || '');
@@ -279,19 +281,19 @@ const AdminChatPage = () => {
     };
 
     initializeSession();
-  }, [user, language, authLoading, editingEventId, createFreshSession]);
+  }, [user, authLoading, editingEventId, createFreshSession]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, suggestions]);
 
   useEffect(() => {
-    if (!user?.id || !language) return;
-    const storageKey = getSessionStorageKey(user.id, language, editingEventId);
+    if (!user?.id) return;
+    const storageKey = getSessionStorageKey(user.id, editingEventId);
     if (sessionId) {
       localStorage.setItem(storageKey, sessionId);
     }
-  }, [sessionId, user, language, editingEventId]);
+  }, [sessionId, user, editingEventId]);
 
   const pushAssistantMessage = (text) => {
     setMessages((prev) => [
@@ -367,7 +369,7 @@ const AdminChatPage = () => {
       await chatAPI.deleteSession(sessionId);
 
       if (user?.id) {
-        const storageKey = getSessionStorageKey(user.id, language, editingEventId);
+        const storageKey = getSessionStorageKey(user.id, editingEventId);
         localStorage.removeItem(storageKey);
       }
 
@@ -416,7 +418,7 @@ const AdminChatPage = () => {
               className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm focus:border-blue-400 focus:outline-none"
             >
               <option value="en">English</option>
-              <option value="es">Spanish</option>
+              <option value="de">German</option>
               <option value="fr">French</option>
             </select>
             <div className="inline-flex items-center gap-2 rounded-xl bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700">
