@@ -197,6 +197,7 @@ const AdminChatPage = () => {
   const [summary, setSummary] = useState('');
   const [mode, setMode] = useState(editingEventId ? 'update' : 'create');
   const endRef = useRef(null);
+  const initialLanguageRef = useRef(language);
 
   const createFreshSession = useCallback(async (activeLanguage = language) => {
     // Start a clean session when the user opens chat, clears it, or the backend session disappears.
@@ -249,7 +250,7 @@ const AdminChatPage = () => {
             const response = await chatAPI.getSession(storedSessionId);
             const session = response.data;
             setSessionId(session.sessionId);
-            setLanguage(session.language || language);
+            setLanguage(session.language || initialLanguageRef.current);
             setEventDraft(session.eventDraft || null);
             setSuggestions(session.suggestions || []);
             setSummary(session.summary || '');
@@ -272,7 +273,7 @@ const AdminChatPage = () => {
           }
         }
 
-        await createFreshSession(language);
+        await createFreshSession(initialLanguageRef.current);
       } catch (err) {
         setError(`Failed to initialize chat: ${err.message}`);
       } finally {
