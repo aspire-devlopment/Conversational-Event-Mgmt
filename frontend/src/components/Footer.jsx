@@ -50,36 +50,36 @@ const Footer = () => {
             <h4 className="text-white font-semibold mb-4">Resources</h4>
             <ul className="space-y-2">
               <li>
-                <a
-                  href="#"
+                <RouterLink
+                  to="/"
                   className="hover:text-blue-400 transition duration-200"
                 >
                   Documentation
-                </a>
+                </RouterLink>
               </li>
               <li>
-                <a
-                  href="#"
+                <RouterLink
+                  to="/"
                   className="hover:text-blue-400 transition duration-200"
                 >
                   Blog
-                </a>
+                </RouterLink>
               </li>
               <li>
-                <a
-                  href="#"
+                <RouterLink
+                  to="/contact"
                   className="hover:text-blue-400 transition duration-200"
                 >
                   FAQ
-                </a>
+                </RouterLink>
               </li>
               <li>
-                <a
-                  href="#"
+                <RouterLink
+                  to="/"
                   className="hover:text-blue-400 transition duration-200"
                 >
                   API Reference
-                </a>
+                </RouterLink>
               </li>
             </ul>
           </div>
@@ -130,24 +130,24 @@ const Footer = () => {
 
           {/* Legal Links */}
           <div className="flex space-x-6 text-sm">
-            <a
-              href="#"
+            <RouterLink
+              to="/privacy"
               className="hover:text-blue-400 transition duration-200"
             >
               Privacy Policy
-            </a>
-            <a
-              href="#"
+            </RouterLink>
+            <RouterLink
+              to="/terms"
               className="hover:text-blue-400 transition duration-200"
             >
               Terms of Service
-            </a>
-            <a
-              href="#"
+            </RouterLink>
+            <RouterLink
+              to="/privacy"
               className="hover:text-blue-400 transition duration-200"
             >
               Cookie Policy
-            </a>
+            </RouterLink>
           </div>
         </div>
       </div>
