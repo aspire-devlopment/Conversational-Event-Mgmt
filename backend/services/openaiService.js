@@ -94,6 +94,31 @@ function extractFriendlyMessage(content, fallbackMessage = 'Could you clarify th
   return trimmed;
 }
 
+function looksEnglish(text) {
+  const sample = String(text || '').toLowerCase();
+  return /\b(i|you|your|event|please|would you like|confirm|change|created|updated)\b/.test(sample);
+}
+
+function buildLocalizedFallbackMessage(language, draft, nextStep, validation) {
+  const missingText = (validation?.missingFields || []).join(', ') || 'none';
+
+  if (language === 'de') {
+    if (nextStep === 'confirm' && validation?.valid) {
+      return `Ich habe die Veranstaltungsdaten erfasst.\n\n${buildSummary(draft)}\n\nMoechten Sie diese Angaben bestaetigen oder etwas aendern?`;
+    }
+    return `Ich habe die bisherigen Veranstaltungsdaten erfasst.\n\n${buildSummary(draft)}\n\nAls Naechstes brauche ich: ${nextStep || missingText}.`;
+  }
+
+  if (language === 'fr') {
+    if (nextStep === 'confirm' && validation?.valid) {
+      return `J ai collecte les informations de l evenement.\n\n${buildSummary(draft)}\n\nSouhaitez-vous confirmer ces informations ou les modifier ?`;
+    }
+    return `J ai collecte les informations suivantes pour l evenement.\n\n${buildSummary(draft)}\n\nEnsuite, j ai besoin de : ${nextStep || missingText}.`;
+  }
+
+  return null;
+}
+
 async function localizeAssistantMessage(message, language) {
   const targetLanguage = normalizeLanguage(language);
   if (!message || targetLanguage === 'en') {
@@ -411,8 +436,16 @@ async function processMessage(userMessage, conversationHistory = [], currentEven
     const mergedDraft = mergeDraft(draft, llmResponse.extractedData, responseLanguage);
     mergedDraft.language = responseLanguage;
     const nextStep = llmResponse.nextStep || getNextStep(mergedDraft);
-
-    const localizedMessage = await localizeAssistantMessage(llmResponse.message, responseLanguage);
+    const validation = validateEventData(mergedDraft);
+    let localizedMessage = await localizeAssistantMessage(llmResponse.message, responseLanguage);
+    if ((responseLanguage === 'de' || responseLanguage === 'fr') && looksEnglish(localizedMessage)) {
+      localizedMessage = buildLocalizedFallbackMessage(
+        responseLanguage,
+        mergedDraft,
+        nextStep,
+        validation
+      ) || localizedMessage;
+    }
 
     return {
       ...llmResponse,
