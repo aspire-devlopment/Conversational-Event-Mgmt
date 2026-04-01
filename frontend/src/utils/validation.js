@@ -33,7 +33,7 @@ export const validators = {
   phone: (phone) => {
     if (!phone) return 'Phone number is required';
     // Accepts various phone formats: (123) 456-7890, 123-456-7890, 1234567890, +1234567890
-    const phoneRegex = /^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/;
+    const phoneRegex = /^[+]?[()]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/;
     if (!phoneRegex.test(phone.trim().replace(/\s/g, ''))) {
       return 'Please enter a valid phone number (e.g., 123-456-7890)';
     }

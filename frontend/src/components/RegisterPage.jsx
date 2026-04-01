@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback } from 'react';
 import { Eye, EyeOff, Mail, Lock, User, Phone, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, useToggle } from '../hooks/useForm';
@@ -51,7 +51,7 @@ const RegisterPage = () => {
     },
     phone: (value) => {
       if (!value) return 'Contact number is required';
-      if (!/^[\d\s\-\+\(\)]{10,}$/.test(value)) {
+      if (!/^[\d\s\-+()]{10,}$/.test(value)) {
         return 'Please enter a valid contact number';
       }
       return '';
@@ -65,17 +65,14 @@ const RegisterPage = () => {
   /**
    * Memoized validation rules for registration form
    */
-  const validationRules = useMemo(
-    () => ({
-      firstName: extendedValidators.firstName,
-      lastName: extendedValidators.lastName,
-      email: extendedValidators.email,
-      phone: extendedValidators.phone,
-      role: extendedValidators.role,
-      password: extendedValidators.password,
-    }),
-    []
-  );
+  const validationRules = {
+    firstName: extendedValidators.firstName,
+    lastName: extendedValidators.lastName,
+    email: extendedValidators.email,
+    phone: extendedValidators.phone,
+    role: extendedValidators.role,
+    password: extendedValidators.password,
+  };
 
   /**
    * Initialize form hook with registration fields

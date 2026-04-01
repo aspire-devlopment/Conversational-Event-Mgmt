@@ -97,14 +97,14 @@ async function loginThroughUi(page, email, password) {
   await page.locator('input[name="email"]').fill(email);
   await page.locator('input[name="password"]').fill(password);
   await page.getByRole('button', { name: /sign in/i }).click();
-  await page.waitForURL('**/admin/events', { timeout: 15000 });
+  await page.waitForURL('**/admin/events', { timeout: 35000 });
 }
 
 async function sendChatMessage(page, message) {
   const textarea = page.locator('#chat-message');
   await textarea.fill(message);
   await page.getByRole('button', { name: /^send$/i }).click();
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(3500);
 }
 
 async function resetChatSessions(page) {
@@ -128,7 +128,7 @@ async function registerThroughUi(page, user) {
     fullPage: true,
   });
   await page.getByRole('button', { name: /create account/i }).click();
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(3000);
   await page.screenshot({
     path: path.join(screenshotDir, 'registration-success.png'),
     fullPage: true,
@@ -148,7 +148,7 @@ async function demoEventCreation(page, eventName) {
     .getByText(/Event Draft|Do you want to save this event\?|What would you like to do next\?/i)
     .waitFor({
       state: 'visible',
-      timeout: 20000,
+      timeout: 40000,
     });
   await page.screenshot({
     path: path.join(screenshotDir, 'event-confirmation.png'),
@@ -159,10 +159,40 @@ async function demoEventCreation(page, eventName) {
   // Wait for the shared success banner instead of one exact sentence.
   await page.locator('div.border-green-200.bg-green-50').waitFor({
     state: 'visible',
-    timeout: 20000,
+    timeout: 40000,
   });
   await page.screenshot({
     path: path.join(screenshotDir, 'conversation-flow.png'),
+    fullPage: true,
+  });
+}
+
+async function demoStepwiseConversationFlow(page, eventName) {
+  await resetChatSessions(page);
+  await page.goto(`${appURL}/admin/chat`, { waitUntil: 'networkidle' });
+
+  await sendChatMessage(page, `I want to create an event called ${eventName}.`);
+  await page.waitForTimeout(2000);
+
+  await sendChatMessage(
+    page,
+    'Use Growing Better Teams as the subheading, describe it as a workshop for managers and team leads, and use this banner URL: https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1400&q=80.'
+  );
+  await page.waitForTimeout(2000);
+
+  await sendChatMessage(
+    page,
+    'Set the timezone to Asia/Katmandu, status to Published, start on April 3, 2026 at 10 AM, end at 12 PM, vanish one day later, and assign Admin and Manager.'
+  );
+
+  await page
+    .getByText(/Event Draft|Do you want to save this event\?|What would you like to do next\?/i)
+    .waitFor({
+      state: 'visible',
+      timeout: 40000,
+    });
+  await page.screenshot({
+    path: path.join(screenshotDir, 'conversation-flow-stepwise.png'),
     fullPage: true,
   });
 }
@@ -171,18 +201,24 @@ async function demoEventUpdate(page, eventId) {
   await resetChatSessions(page);
   await page.goto(`${appURL}/admin/chat?eventId=${eventId}`, { waitUntil: 'networkidle' });
 
+  // Both update screenshots are captured from this same event session:
+  // first the confirmation/conversation state, then the final success state.
   await sendChatMessage(
     page,
-    'Please change the start time to April 3, 2026 at 2 PM and keep the rest the same.'
+    'Please change the start time to April 3, 2026 at 2 PM, set the end time to April 3, 2026 at 4 PM, and set the vanish time to April 4, 2026 at 4 PM.'
   );
   await page.getByText(/Do you want to save this event\?|Event Draft/i).waitFor({
     state: 'visible',
-    timeout: 20000,
+    timeout: 40000,
+  });
+  await page.screenshot({
+    path: path.join(screenshotDir, 'event-update-conversation.png'),
+    fullPage: true,
   });
   await sendChatMessage(page, 'save now');
-  await page.locator('div.border-green-200.bg-green-50').waitFor({
+  await page.getByText('The event was updated successfully.', { exact: true }).waitFor({
     state: 'visible',
-    timeout: 20000,
+    timeout: 40000,
   });
   await page.screenshot({
     path: path.join(screenshotDir, 'event-update.png'),
@@ -195,9 +231,35 @@ async function demoMultilingualFlow(page, language, message, fileName) {
   await page.goto(`${appURL}/admin/chat`, { waitUntil: 'networkidle' });
 
   await page.locator('select').first().selectOption(language);
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(4500);
   await sendChatMessage(page, message);
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(4000);
+  await page.screenshot({
+    path: path.join(screenshotDir, fileName),
+    fullPage: true,
+  });
+}
+
+async function demoMultilingualSaveSuccess(page, language, message, fileName) {
+  await resetChatSessions(page);
+  await page.goto(`${appURL}/admin/chat`, { waitUntil: 'networkidle' });
+
+  await page.locator('select').first().selectOption(language);
+  await page.waitForTimeout(4500);
+  await sendChatMessage(page, message);
+
+  await page
+    .getByText(/Event Draft|Do you want to save this event\?|What would you like to do next\?/i)
+    .waitFor({
+      state: 'visible',
+      timeout: 40000,
+    });
+
+  await sendChatMessage(page, 'save now');
+  await page.getByText('The event was created and added to the list.', { exact: true }).waitFor({
+    state: 'visible',
+    timeout: 40000,
+  });
   await page.screenshot({
     path: path.join(screenshotDir, fileName),
     fullPage: true,
@@ -212,7 +274,7 @@ async function demoClearSession(page) {
   await page.reload({ waitUntil: 'networkidle' });
   await page.getByText(/Welcome|AI Event Creation Assistant|Initializing chat/i).waitFor({
     state: 'visible',
-    timeout: 20000,
+    timeout: 40000,
   });
   await page.screenshot({
     path: path.join(screenshotDir, 'clear-chat-session.png'),
@@ -233,7 +295,7 @@ async function demoAdminUsersFlow(page, userEmail, newPassword) {
     .first();
 
   await row.getByRole('button', { name: /reset password/i }).click();
-  await page.getByRole('dialog').waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+  await page.getByRole('dialog').waitFor({ state: 'visible', timeout: 40000 }).catch(() => {});
 
   const modal = page.locator('div.fixed.inset-0.z-50');
   await modal.locator('input[name="newPassword"]').fill(newPassword);
@@ -246,7 +308,7 @@ async function demoAdminUsersFlow(page, userEmail, newPassword) {
   await modal.getByRole('button', { name: /save password/i }).click();
   await page.locator('div.border-emerald-200.bg-emerald-50').waitFor({
     state: 'visible',
-    timeout: 15000,
+    timeout: 45000,
   });
   await page.screenshot({
     path: path.join(screenshotDir, 'password-reset-success.png'),
@@ -346,6 +408,10 @@ async function main() {
     await demoEventCreation(page, chatEventName);
   }
 
+  if (shouldRun('conversation-stepwise')) {
+    await demoStepwiseConversationFlow(page, `Stepwise Workshop ${runTag}`);
+  }
+
   if (shouldRun('listing')) {
     await capture(page, 'event-listing.png', '/admin/events');
   }
@@ -369,6 +435,24 @@ async function main() {
       'es',
       `Hola, quiero crear un evento llamado Taller de Ventas ${runTag}. El subtítulo es Equipo comercial, la descripción es una sesión para el equipo de ventas, la zona horaria es Asia/Katmandu, el estado es Borrador, comienza el 6 de abril de 2026 a las 10 AM, termina a las 12 PM, y los roles son Admin y Sales Rep.`,
       'multilingual-spanish.png'
+    );
+  }
+
+  if (shouldRun('multilingual-success') || shouldRun('multilingual-success-fr')) {
+    await demoMultilingualSaveSuccess(
+      page,
+      'fr',
+      `Bonjour, je veux créer un événement nommé Atelier Succès ${runTag}. Le sous-titre est Validation finale, la description est une démonstration de création multilingue, l'image de bannière est https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=1400&q=80, le fuseau horaire est Asia/Katmandu, le statut est Brouillon, commence le 7 avril 2026 à 10h, termine à 12h, et les rôles sont Admin et Manager.`,
+      'multilingual-french-success.png'
+    );
+  }
+
+  if (shouldRun('multilingual-success') || shouldRun('multilingual-success-es')) {
+    await demoMultilingualSaveSuccess(
+      page,
+      'es',
+      `Hola, quiero crear un evento llamado Taller Exitoso ${runTag}. El subtítulo es Validación final, la descripción es una demostración de creación multilingüe, la imagen del banner es https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=1400&q=80, la zona horaria es Asia/Katmandu, el estado es Borrador, comienza el 8 de abril de 2026 a las 10 AM, termina a las 12 PM, y los roles son Admin y Sales Rep.`,
+      'multilingual-spanish-success.png'
     );
   }
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Send, Sparkles, Loader, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -198,7 +198,7 @@ const AdminChatPage = () => {
   const [mode, setMode] = useState(editingEventId ? 'update' : 'create');
   const endRef = useRef(null);
 
-  const createFreshSession = async (activeLanguage = language) => {
+  const createFreshSession = useCallback(async (activeLanguage = language) => {
     // Start a clean session when the user opens chat, clears it, or the backend session disappears.
     if (!user?.id) {
       throw new Error('User is not ready');
@@ -223,7 +223,7 @@ const AdminChatPage = () => {
     ]);
 
     return response;
-  };
+  }, [editingEventId, language, user?.id]);
 
   useEffect(() => {
     const initializeSession = async () => {
@@ -279,7 +279,7 @@ const AdminChatPage = () => {
     };
 
     initializeSession();
-  }, [user, language, authLoading, editingEventId]);
+  }, [user, language, authLoading, editingEventId, createFreshSession]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
