@@ -94,6 +94,28 @@ function extractFriendlyMessage(content, fallbackMessage = 'Could you clarify th
   return trimmed;
 }
 
+async function localizeAssistantMessage(message, language) {
+  const targetLanguage = normalizeLanguage(language);
+  if (!message || targetLanguage === 'en') {
+    return message;
+  }
+
+  const languageName = targetLanguage === 'de' ? 'German' : 'French';
+  const prompt = `Rewrite the following assistant message in ${languageName}. Preserve the meaning, event details, dates, times, roles, URLs, and status exactly. Return JSON with keys language and message only.\n\nMessage:\n${message}`;
+
+  try {
+    const response = await callOpenRouter([{ role: 'user', content: prompt }], 220, targetLanguage);
+    return response.message || message;
+  } catch (error) {
+    logger.warn('openaiService', 'Failed to localize assistant message; using original text', {
+      language: targetLanguage,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+    return message;
+  }
+}
+
 function getSystemPrompt(language = 'en', options = {}) {
   // The prompt defines the chat contract: what fields to collect and how to respond.
   const responseRule = {
@@ -390,9 +412,12 @@ async function processMessage(userMessage, conversationHistory = [], currentEven
     mergedDraft.language = responseLanguage;
     const nextStep = llmResponse.nextStep || getNextStep(mergedDraft);
 
+    const localizedMessage = await localizeAssistantMessage(llmResponse.message, responseLanguage);
+
     return {
       ...llmResponse,
       language: responseLanguage,
+      message: localizedMessage,
       extractedData: {
         ...mergedDraft,
         language: responseLanguage,
