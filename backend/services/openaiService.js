@@ -94,16 +94,20 @@ function extractFriendlyMessage(content, fallbackMessage = 'Could you clarify th
   return trimmed;
 }
 
-function getSystemPrompt(language = 'en') {
+function getSystemPrompt(language = 'en', options = {}) {
   // The prompt defines the chat contract: what fields to collect and how to respond.
   const responseRule = {
     en: 'Respond in English.',
     de: 'Respond in German.',
     fr: 'Respond in French.',
   }[normalizeLanguage(language)];
+  const lockRule = options.languageLocked
+    ? `Do not switch languages even if the user writes in another language. Set "language" to "${normalizeLanguage(language)}".`
+    : '';
 
   return `You are an AI assistant that creates virtual events entirely through chat.
 ${responseRule}
+${lockRule}
 
 Collect and update this event metadata:
 - name
@@ -350,11 +354,11 @@ async function callOpenRouter(messages, maxTokens = 500, language = 'en') {
 async function processMessage(userMessage, conversationHistory = [], currentEventData = {}, language = 'en', options = {}) {
   try {
     // Merge the latest message with the current draft, then let the model fill gaps or apply corrections.
-    const detectedLanguage = options.languageLocked
+    const effectiveLanguage = options.languageLocked
       ? normalizeLanguage(language || currentEventData.language)
       : detectLanguage(userMessage, currentEventData.language || language);
-    const draft = normalizeDraft(currentEventData, detectedLanguage);
-    const systemPrompt = getSystemPrompt(detectedLanguage);
+    const draft = normalizeDraft(currentEventData, effectiveLanguage);
+    const systemPrompt = getSystemPrompt(effectiveLanguage, options);
     const historyMessages = (conversationHistory || []).map((msg) => ({
       role: msg.role === 'assistant' || msg.role === 'bot' ? 'assistant' : 'user',
       content: msg.content || msg.text || '',
@@ -372,21 +376,24 @@ async function processMessage(userMessage, conversationHistory = [], currentEven
       provider: 'openrouter',
       userMessageLength: userMessage.length,
       historyLength: conversationHistory.length,
-      language: detectedLanguage,
+      language: effectiveLanguage,
       currentEventData: draft,
       timestamp: new Date().toISOString(),
     });
 
-    const llmResponse = await callOpenRouter(messages, 700, detectedLanguage);
-    const mergedDraft = mergeDraft(draft, llmResponse.extractedData, llmResponse.language || detectedLanguage);
+    const llmResponse = await callOpenRouter(messages, 700, effectiveLanguage);
+    const responseLanguage = options.languageLocked
+      ? effectiveLanguage
+      : (llmResponse.language || effectiveLanguage);
+    const mergedDraft = mergeDraft(draft, llmResponse.extractedData, responseLanguage);
     const nextStep = llmResponse.nextStep || getNextStep(mergedDraft);
 
     return {
       ...llmResponse,
-      language: llmResponse.language || detectedLanguage,
+      language: responseLanguage,
       extractedData: mergedDraft,
       nextStep: nextStep === 'confirm' ? getNextStep(mergedDraft) : nextStep,
-      suggestions: getSuggestions(nextStep, detectedLanguage),
+      suggestions: getSuggestions(nextStep, responseLanguage),
       summary: buildSummary(mergedDraft),
     };
   } catch (error) {

@@ -199,6 +199,7 @@ const AdminChatPage = () => {
   const [mode, setMode] = useState(editingEventId ? 'update' : 'create');
   const endRef = useRef(null);
   const initialLanguageRef = useRef(language);
+  const languageSelection = languageLocked ? language : 'auto';
 
   const createFreshSession = useCallback(async (activeLanguage = language) => {
     // Start a clean session when the user opens chat, clears it, or the backend session disappears.
@@ -417,13 +418,18 @@ const AdminChatPage = () => {
           </div>
           <div className="flex items-center gap-3">
             <select
-              value={language}
+              value={languageSelection}
               onChange={(e) => {
+                if (e.target.value === 'auto') {
+                  setLanguageLocked(false);
+                  return;
+                }
                 setLanguage(e.target.value);
                 setLanguageLocked(true);
               }}
               className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm focus:border-blue-400 focus:outline-none"
             >
+              <option value="auto">Auto</option>
               <option value="en">English</option>
               <option value="de">German</option>
               <option value="fr">French</option>
