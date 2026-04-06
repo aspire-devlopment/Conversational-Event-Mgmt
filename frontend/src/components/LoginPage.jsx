@@ -3,8 +3,8 @@ import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, useToggle } from '../hooks/useForm';
 import { validators, validateForm, hasErrors } from '../utils/validation';
-import { authAPI } from '../services/api';
-import { APP_ROUTES, STORAGE_KEYS } from '../constants/appConstants';
+import { APP_ROUTES } from '../constants/appConstants';
+import { useAuth } from '../context/AuthContext';
 import {
   FormInput,
   FormCheckbox,
@@ -23,6 +23,7 @@ import { AuthLayout, FormWrapper } from './layouts/AuthLayout';
  */
 const LoginPage = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const { isOpen: showPassword, toggle: togglePasswordVisibility } =
     useToggle(false);
   const [generalError, setGeneralError] = React.useState('');
@@ -71,17 +72,11 @@ const LoginPage = () => {
     }
 
     try {
-      // Call backend API with normalized email (lowercase)
-      const response = await authAPI.login(
+      // Use the shared auth context so the whole app sees the logged-in user immediately.
+      const response = await login(
         formValues.email.toLowerCase().trim(), // Normalize email
         formValues.password
       );
-
-      // Store auth token and user data
-      if (response.data.token) {
-        localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, response.data.token);
-        localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(response.data.user));
-      }
 
       // Success handling
       console.log('Login successful:', response.data.user);
