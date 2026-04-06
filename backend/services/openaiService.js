@@ -71,6 +71,15 @@ function looksLikeStructuredPayload(text) {
   );
 }
 
+function isMeaningfulAssistantMessage(text) {
+  const sample = String(text || '').trim();
+  if (!sample) return false;
+  if (looksLikeStructuredPayload(sample)) return false;
+  if (/^[{\["'`\s]+$/.test(sample)) return false;
+  if (sample.length < 4 && !/[A-Za-zÀ-ÿ0-9]/.test(sample)) return false;
+  return true;
+}
+
 function extractMessageFromBrokenJson(text) {
   const markerMatch = String(text || '').match(/"message"\s*:\s*"/);
   if (!markerMatch || typeof markerMatch.index !== 'number') {
@@ -510,19 +519,22 @@ async function processMessage(userMessage, conversationHistory = [], currentEven
     mergedDraft.language = responseLanguage;
     const nextStep = llmResponse.nextStep || getNextStep(mergedDraft);
     const validation = validateEventData(mergedDraft);
-    const friendlyMessage = extractFriendlyMessage(
-      llmResponse.message,
+    const fallbackMessage =
       buildLocalizedFallbackMessage(responseLanguage, mergedDraft, nextStep, validation) ||
-        'Could you clarify that?'
+      'Could you clarify that?';
+    let friendlyMessage = extractFriendlyMessage(
+      llmResponse.message,
+      fallbackMessage
     );
+    if (!isMeaningfulAssistantMessage(friendlyMessage)) {
+      friendlyMessage = fallbackMessage;
+    }
     let localizedMessage = await localizeAssistantMessage(friendlyMessage, responseLanguage);
+    if (!isMeaningfulAssistantMessage(localizedMessage)) {
+      localizedMessage = fallbackMessage;
+    }
     if ((responseLanguage === 'de' || responseLanguage === 'fr') && looksEnglish(localizedMessage)) {
-      localizedMessage = buildLocalizedFallbackMessage(
-        responseLanguage,
-        mergedDraft,
-        nextStep,
-        validation
-      ) || localizedMessage;
+      localizedMessage = fallbackMessage || localizedMessage;
     }
 
     return {
