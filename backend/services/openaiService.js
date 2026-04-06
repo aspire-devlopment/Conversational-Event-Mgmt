@@ -75,6 +75,15 @@ function isMeaningfulAssistantMessage(text) {
   const sample = String(text || '').trim();
   if (!sample) return false;
   if (looksLikeStructuredPayload(sample)) return false;
+  if (
+    /^could you clarify that\??$/i.test(sample) ||
+    /^konnten sie das bitte klaren\??$/i.test(sample) ||
+    /^koennten sie das bitte klaren\??$/i.test(sample) ||
+    /^konnten sie das bitte klarstellen\??$/i.test(sample) ||
+    /^koennten sie das bitte klarstellen\??$/i.test(sample) ||
+    /^pourriez-vous clarifier cela\s*\??$/i.test(sample) ||
+    /^pouvez-vous clarifier cela\s*\??$/i.test(sample)
+  ) return false;
   if (/^[{\["'`\s]+$/.test(sample)) return false;
   if (sample.length < 4 && !/[A-Za-zÀ-ÿ0-9]/.test(sample)) return false;
   return true;
@@ -696,7 +705,7 @@ async function generateGreeting(language = 'en') {
       response.message,
       'Welcome. I can help you create a virtual event. What would you like to name the event?'
     );
-    if (looksLikeStructuredPayload(greeting)) {
+    if (!isMeaningfulAssistantMessage(greeting) || looksLikeStructuredPayload(greeting)) {
       throw new Error('Greeting response remained structured after extraction');
     }
     return greeting;
