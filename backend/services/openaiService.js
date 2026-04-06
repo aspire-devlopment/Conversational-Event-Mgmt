@@ -437,7 +437,12 @@ async function processMessage(userMessage, conversationHistory = [], currentEven
     mergedDraft.language = responseLanguage;
     const nextStep = llmResponse.nextStep || getNextStep(mergedDraft);
     const validation = validateEventData(mergedDraft);
-    let localizedMessage = await localizeAssistantMessage(llmResponse.message, responseLanguage);
+    const friendlyMessage = extractFriendlyMessage(
+      llmResponse.message,
+      buildLocalizedFallbackMessage(responseLanguage, mergedDraft, nextStep, validation) ||
+        'Could you clarify that?'
+    );
+    let localizedMessage = await localizeAssistantMessage(friendlyMessage, responseLanguage);
     if ((responseLanguage === 'de' || responseLanguage === 'fr') && looksEnglish(localizedMessage)) {
       localizedMessage = buildLocalizedFallbackMessage(
         responseLanguage,
