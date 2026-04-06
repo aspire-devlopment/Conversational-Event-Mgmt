@@ -53,9 +53,64 @@ const normalizeAssistantText = (value) => {
   const trimmed = value.trim();
   if (!trimmed) return '';
 
+  const extractBrokenMessage = (input) => {
+    const markerMatch = input.match(/"message"\s*:\s*"/);
+    if (!markerMatch || typeof markerMatch.index !== 'number') return null;
+
+    const startIndex = markerMatch.index + markerMatch[0].length;
+    let result = '';
+    let escaping = false;
+
+    for (let index = startIndex; index < input.length; index += 1) {
+      const char = input[index];
+      const remaining = input.slice(index);
+
+      if (escaping) {
+        result += char;
+        escaping = false;
+        continue;
+      }
+
+      if (char === '\\') {
+        result += char;
+        escaping = true;
+        continue;
+      }
+
+      if (char === '"') {
+        return decodeJsonStringFragment(result).trim();
+      }
+
+      if (
+        remaining.startsWith('",\n') ||
+        remaining.startsWith('",\r\n') ||
+        remaining.startsWith('"\n') ||
+        remaining.startsWith('"\r\n')
+      ) {
+        return decodeJsonStringFragment(result).trim();
+      }
+
+      result += char;
+    }
+
+    return decodeJsonStringFragment(result)
+      .replace(/```$/g, '')
+      .replace(/\s*"confidence"\s*:\s*[\d.]+[\s\S]*$/i, '')
+      .replace(/\s*"language"\s*:\s*"[^"]*"[\s\S]*$/i, '')
+      .replace(/\s*"nextStep"\s*:\s*"[^"]*"[\s\S]*$/i, '')
+      .replace(/\s*"changedFields"\s*:\s*\[[\s\S]*$/i, '')
+      .replace(/\s*"extractedData"\s*:\s*\{[\s\S]*$/i, '')
+      .trim();
+  };
+
   const messageMatch = trimmed.match(/"message"\s*:\s*"((?:\\.|[^"\\])*)"/s);
   if (messageMatch?.[1]) {
     return decodeJsonStringFragment(messageMatch[1]).trim();
+  }
+
+  const brokenMessage = extractBrokenMessage(trimmed);
+  if (brokenMessage) {
+    return brokenMessage;
   }
 
   const parseCandidate = (candidate) => {

@@ -58,6 +58,74 @@ function decodeJsonStringFragment(fragment) {
   }
 }
 
+function looksLikeStructuredPayload(text) {
+  const sample = String(text || '').trim();
+  if (!sample) return false;
+
+  return (
+    sample.startsWith('{') ||
+    sample.startsWith('```') ||
+    /"intent"\s*:/.test(sample) ||
+    /"extractedData"\s*:/.test(sample) ||
+    /"nextStep"\s*:/.test(sample)
+  );
+}
+
+function extractMessageFromBrokenJson(text) {
+  const markerMatch = String(text || '').match(/"message"\s*:\s*"/);
+  if (!markerMatch || typeof markerMatch.index !== 'number') {
+    return null;
+  }
+
+  const startIndex = markerMatch.index + markerMatch[0].length;
+  let result = '';
+  let escaping = false;
+
+  for (let index = startIndex; index < text.length; index += 1) {
+    const char = text[index];
+    const remaining = text.slice(index);
+
+    if (escaping) {
+      result += char;
+      escaping = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      result += char;
+      escaping = true;
+      continue;
+    }
+
+    if (char === '"') {
+      return decodeJsonStringFragment(result).trim();
+    }
+
+    if (
+      remaining.startsWith('",\n') ||
+      remaining.startsWith('",\r\n') ||
+      remaining.startsWith('","') ||
+      remaining.startsWith('"\n') ||
+      remaining.startsWith('"\r\n')
+    ) {
+      return decodeJsonStringFragment(result).trim();
+    }
+
+    result += char;
+  }
+
+  const cleaned = decodeJsonStringFragment(result)
+    .replace(/```$/g, '')
+    .replace(/\s*"confidence"\s*:\s*[\d.]+[\s\S]*$/i, '')
+    .replace(/\s*"language"\s*:\s*"[^"]*"[\s\S]*$/i, '')
+    .replace(/\s*"nextStep"\s*:\s*"[^"]*"[\s\S]*$/i, '')
+    .replace(/\s*"changedFields"\s*:\s*\[[\s\S]*$/i, '')
+    .replace(/\s*"extractedData"\s*:\s*\{[\s\S]*$/i, '')
+    .trim();
+
+  return cleaned || null;
+}
+
 function extractFriendlyMessage(content, fallbackMessage = 'Could you clarify that?') {
   // Strip model JSON down to the sentence the user should actually see.
   if (typeof content !== 'string') return fallbackMessage;
@@ -81,6 +149,11 @@ function extractFriendlyMessage(content, fallbackMessage = 'Could you clarify th
   const messageMatch = trimmed.match(/"message"\s*:\s*"((?:\\.|[^"\\])*)"/s);
   if (messageMatch?.[1]) {
     return decodeJsonStringFragment(messageMatch[1]).trim();
+  }
+
+  const brokenMessage = extractMessageFromBrokenJson(trimmed);
+  if (brokenMessage) {
+    return brokenMessage;
   }
 
   const objectMatch = trimmed.match(/\{[\s\S]*\}/);
@@ -486,10 +559,14 @@ async function generateGreeting(language = 'en') {
 
   try {
     const response = await callOpenRouter([{ role: 'user', content: prompt }], 140, detectedLanguage);
-    return extractFriendlyMessage(
+    const greeting = extractFriendlyMessage(
       response.message,
       'Welcome. I can help you create a virtual event. What would you like to name the event?'
     );
+    if (looksLikeStructuredPayload(greeting)) {
+      throw new Error('Greeting response remained structured after extraction');
+    }
+    return greeting;
   } catch (error) {
     logger.error('openaiService', 'Failed to generate greeting; using fallback', {
       error: error.message,
