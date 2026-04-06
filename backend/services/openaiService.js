@@ -294,6 +294,127 @@ function normalizeParsedResponse(parsed, fallbackLanguage = 'en') {
   };
 }
 
+function extractBalancedJsonBlock(text, key) {
+  const source = String(text || '');
+  const keyPattern = new RegExp(`"${key}"\\s*:\\s*([\\[{])`);
+  const keyMatch = source.match(keyPattern);
+  if (!keyMatch || typeof keyMatch.index !== 'number') {
+    return null;
+  }
+
+  const openingChar = keyMatch[1];
+  const closingChar = openingChar === '{' ? '}' : ']';
+  const startIndex = keyMatch.index + keyMatch[0].lastIndexOf(openingChar);
+  let depth = 0;
+  let inString = false;
+  let escaping = false;
+
+  for (let index = startIndex; index < source.length; index += 1) {
+    const char = source[index];
+
+    if (inString) {
+      if (escaping) {
+        escaping = false;
+        continue;
+      }
+      if (char === '\\') {
+        escaping = true;
+        continue;
+      }
+      if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === openingChar) {
+      depth += 1;
+      continue;
+    }
+
+    if (char === closingChar) {
+      depth -= 1;
+      if (depth === 0) {
+        return source.slice(startIndex, index + 1);
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractJsonStringValue(text, key) {
+  const source = String(text || '');
+  const match = source.match(new RegExp(`"${key}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`, 's'));
+  if (!match?.[1]) return null;
+  return decodeJsonStringFragment(match[1]).trim();
+}
+
+function extractJsonNumberValue(text, key) {
+  const source = String(text || '');
+  const match = source.match(new RegExp(`"${key}"\\s*:\\s*(-?\\d+(?:\\.\\d+)?)`));
+  if (!match?.[1]) return null;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function tryParsePartialStructuredLlmContent(content, fallbackLanguage = 'en') {
+  const trimmed = String(content || '').trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const extractedDataBlock = extractBalancedJsonBlock(trimmed, 'extractedData');
+  const changedFieldsBlock = extractBalancedJsonBlock(trimmed, 'changedFields');
+  const intent = extractJsonStringValue(trimmed, 'intent');
+  const language = extractJsonStringValue(trimmed, 'language') || fallbackLanguage;
+  const nextStep = extractJsonStringValue(trimmed, 'nextStep');
+  const message = extractJsonStringValue(trimmed, 'message') || extractMessageFromBrokenJson(trimmed);
+  const confidence = extractJsonNumberValue(trimmed, 'confidence');
+
+  if (!extractedDataBlock && !message && !intent && !nextStep) {
+    return null;
+  }
+
+  let extractedData = {};
+  let changedFields = [];
+
+  if (extractedDataBlock) {
+    try {
+      extractedData = JSON.parse(extractedDataBlock);
+    } catch {
+      extractedData = {};
+    }
+  }
+
+  if (changedFieldsBlock) {
+    try {
+      const parsedFields = JSON.parse(changedFieldsBlock);
+      changedFields = Array.isArray(parsedFields) ? parsedFields : [];
+    } catch {
+      changedFields = [];
+    }
+  }
+
+  return normalizeParsedResponse(
+    {
+      intent: intent || 'clarify',
+      language,
+      extractedData,
+      changedFields,
+      message: message || 'Could you clarify that?',
+      nextStep: nextStep || 'name',
+      confidence: confidence ?? 0.5,
+    },
+    fallbackLanguage
+  );
+}
+
 function tryParseStructuredLlmContent(content, fallbackLanguage = 'en') {
   if (!content || typeof content !== 'string') {
     return null;
@@ -330,11 +451,11 @@ function tryParseStructuredLlmContent(content, fallbackLanguage = 'en') {
         return normalizeParsedResponse(parsed, fallbackLanguage);
       }
     } catch (error) {
-      return null;
+      return tryParsePartialStructuredLlmContent(objectMatch[0], fallbackLanguage);
     }
   }
 
-  return null;
+  return tryParsePartialStructuredLlmContent(trimmed, fallbackLanguage);
 }
 
 function extractContent(data) {
