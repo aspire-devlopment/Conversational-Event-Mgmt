@@ -17,6 +17,7 @@ const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 const FILE_FALLBACK_ENABLED =
   String(process.env.ENABLE_FILE_SESSION_FALLBACK || '').toLowerCase() === 'true';
 
+// Calculate the expiry timestamp used for new and refreshed chat sessions.
 function buildExpiryDate(baseDate = new Date()) {
   return new Date(baseDate.getTime() + SESSION_DURATION);
 }
@@ -27,10 +28,12 @@ if (!fs.existsSync(SESSIONS_DIR)) {
 }
 
 class ChatSessionRepository {
+  // Store the database context used for chat session reads/writes.
   constructor(dataContext) {
     this.dataContext = dataContext;
   }
 
+  // Remove expired sessions from the primary DB or local fallback files.
   async cleanupExpiredSessions() {
     try {
       await this.dataContext.execute('DELETE FROM chat_sessions WHERE expires_at <= CURRENT_TIMESTAMP');
@@ -41,6 +44,7 @@ class ChatSessionRepository {
     }
   }
 
+  // List active sessions ordered by most recently updated.
   async list() {
     try {
       await this.cleanupExpiredSessions();
@@ -58,6 +62,7 @@ class ChatSessionRepository {
     }
   }
 
+  // Load one active session by id; expired sessions are ignored.
   async getById(id) {
     try {
       await this.cleanupExpiredSessions();
@@ -76,11 +81,13 @@ class ChatSessionRepository {
     }
   }
 
+  // Create a new resumable chat session with an initial event draft.
   async create(payload) {
     const sessionId = payload.id || uuidv4();
     const now = new Date();
     const expiresAt = buildExpiryDate(now);
 
+    // session_data is the full resumable chat state; top-level columns support fast filtering.
     const sessionData = {
       id: sessionId,
       user_id: payload.user_id,
@@ -120,8 +127,10 @@ class ChatSessionRepository {
     }
   }
 
+  // Update session JSON, current step, language, expiry, and timestamp.
   async update(id, payload) {
     try {
+      // Updating a chat session also extends its expiry, so active chats stay resumable.
       const nextSessionData = payload.session_data || null;
       const nextExpiresAt = payload.expires_at
         ? new Date(payload.expires_at)
@@ -158,6 +167,7 @@ class ChatSessionRepository {
     }
   }
 
+  // Append a user/bot message to the saved conversation history.
   async addMessage(sessionId, role, content) {
     try {
       const session = await this.getById(sessionId);
@@ -171,6 +181,7 @@ class ChatSessionRepository {
         sessionData.conversation_history = [];
       }
 
+      // Store the raw chat turn for future LLM context and for UI conversation replay.
       sessionData.conversation_history.push({
         role,
         content,
@@ -184,6 +195,7 @@ class ChatSessionRepository {
     }
   }
 
+  // Merge event draft fields into an existing session draft.
   async updateEventDraft(sessionId, eventData) {
     try {
       const session = await this.getById(sessionId);
@@ -193,6 +205,7 @@ class ChatSessionRepository {
         ? JSON.parse(session.session_data) 
         : session.session_data;
 
+      // The event draft is the temporary event payload before final insertion/update.
       sessionData.event_draft = {
         ...sessionData.event_draft,
         ...eventData
@@ -205,6 +218,7 @@ class ChatSessionRepository {
     }
   }
 
+  // Delete a chat session from DB and fallback file storage.
   async remove(id) {
     try {
       const result = await this.dataContext.execute('DELETE FROM chat_sessions WHERE id = $1', [id]);
@@ -220,7 +234,7 @@ class ChatSessionRepository {
     }
   }
 
-  // File-based fallback methods
+  // Save a session JSON document to disk when fallback mode is enabled.
   _saveToFile(session) {
     try {
       const file = path.join(SESSIONS_DIR, `${session.id}.json`);
@@ -230,6 +244,7 @@ class ChatSessionRepository {
     }
   }
 
+  // Read one fallback session file and ignore/delete it if expired.
   _getFromFile(id) {
     try {
       const file = path.join(SESSIONS_DIR, `${id}.json`);
@@ -258,6 +273,7 @@ class ChatSessionRepository {
     }
   }
 
+  // Merge updates into a fallback session file.
   _updateInFile(id, updates) {
     try {
       const session = this._getFromFile(id);
@@ -277,6 +293,7 @@ class ChatSessionRepository {
     }
   }
 
+  // Delete one fallback session file by id.
   _deleteFromFile(id) {
     try {
       const file = path.join(SESSIONS_DIR, `${id}.json`);
@@ -291,6 +308,7 @@ class ChatSessionRepository {
     }
   }
 
+  // List every non-expired fallback session file.
   _listFromFiles() {
     try {
       this._cleanupExpiredFiles();
@@ -304,6 +322,7 @@ class ChatSessionRepository {
     }
   }
 
+  // Remove expired fallback session files from disk.
   _cleanupExpiredFiles() {
     try {
       const files = fs.readdirSync(SESSIONS_DIR);

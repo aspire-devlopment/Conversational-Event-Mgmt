@@ -16,6 +16,7 @@ const { JWT_CONFIG } = require('../constants/appConfig');
  * Should be used on protected routes
  * Expects Authorization header: "Bearer <token>"
  */
+// Require a valid Bearer JWT and attach decoded user details to req.user.
 const verifyJWTToken = (req, res, next) => {
   try {
     const authHeader = req.headers[JWT_CONFIG.HEADER_NAME.toLowerCase()];
@@ -91,6 +92,7 @@ const verifyJWTToken = (req, res, next) => {
  * Optional JWT verification - does not fail if token is missing
  * Adds user info to request if valid token is provided
  */
+// Attach req.user when a valid token exists, but allow anonymous requests.
 const optionalVerifyJWTToken = (req, res, next) => {
   try {
     const authHeader = req.headers[JWT_CONFIG.HEADER_NAME.toLowerCase()];
@@ -138,6 +140,7 @@ const optionalVerifyJWTToken = (req, res, next) => {
  * Should be used after verifyJWTToken
  * @param {string|string[]} allowedRoles - Single role or array of allowed roles
  */
+// Create middleware that allows only users with one of the given roles.
 const authorizeRole = (allowedRoles) => {
   const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
 

@@ -1,0 +1,380 @@
+<!--
+  File: eventCreated.html
+  Purpose: HTML email template for event creation notifications
+  Description: Professional HTML email sent when new event created
+               Includes event details, link to event, and call-to-action
+               Responsive design for mobile and desktop clients
+  
+  Template Variables (substituted at runtime):
+  - {{eventName}} - Name of the created event
+  - {{eventSubheading}} - Event subtitle/tagline
+  - {{eventDescription}} - Full event description
+  - {{eventStartTime}} - Event start date/time
+  - {{eventEndTime}} - Event end date/time
+  - {{eventTimezone}} - Event timezone
+  - {{userName}} - First name of recipient
+  - {{userRole}} - Role of recipient (Admin, Manager, etc.)
+  - {{eventLink}} - URL to view event details
+  - {{eventId}} - Event ID for reference
+
+  Usage in code:
+  notificationService.generateEmailHtml(data)
+  - Generates HTML with all variables replaced
+  - Rendered in emailService.sendEmail()
+  - Fallback: textContent used if HTML not supported
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Event Created</title>
+    <style>
+        /**
+         * Email stylesheet
+         * Inline styles recommended for email clients
+         * Supports: Gmail, Outlook, Apple Mail, mobile clients
+         */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            color: #333;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+        }
+        
+        /**
+         * Container: Max width for better readability
+         * Centers content on desktop, full width on mobile
+         */
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #ffffff;
+        }
+
+        /**
+         * Header: Brand and visual hierarchy
+         * Blue background for brand recognition
+         * White text for contrast
+         */
+        .header {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            padding: 30px 20px;
+            border-radius: 5px 5px 0 0;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        /**
+         * Content section: Main email body
+         * Light gray background for visual separation
+         */
+        .content {
+            background: #f8f9fa;
+            padding: 30px 20px;
+        }
+
+        /**
+         * Greeting paragraph
+         * Personalized with user name and role
+         */
+        .greeting {
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 16px;
+        }
+
+        /**
+         * Event details card
+         * White background, blue left border
+         * Contains all event information
+         */
+        .event-details {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #007bff;
+            border-radius: 3px;
+        }
+
+        .event-details h2 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 22px;
+            color: #007bff;
+        }
+
+        .event-details .subtitle {
+            font-size: 16px;
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 15px;
+        }
+
+        .event-details .description {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.8;
+        }
+
+        /**
+         * Detail row: Event date, time, timezone
+         * Key-value pairs for clarity
+         */
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            font-weight: bold;
+            color: #555;
+            min-width: 100px;
+        }
+
+        .detail-value {
+            color: #333;
+            text-align: right;
+            flex: 1;
+        }
+
+        /**
+         * CTA Button: Call-to-action for viewing event
+         * Prominent blue button with hover effect
+         * Links to event details page
+         */
+        .cta-button {
+            display: inline-block;
+            background: #007bff;
+            color: white;
+            padding: 14px 28px;
+            margin: 20px 0;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 16px;
+            text-align: center;
+            transition: background-color 0.3s ease;
+        }
+
+        .cta-button:hover {
+            background: #0056b3;
+        }
+
+        /**
+         * Footer: Contact and legal information
+         * Subtle styling, centered alignment
+         */
+        .footer {
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+            padding-top: 20px;
+            border-top: 1px solid #f0f0f0;
+            margin-top: 20px;
+        }
+
+        .footer p {
+            margin: 5px 0;
+        }
+
+        .footer a {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        /**
+         * Message: Secondary information
+         * Used for additional context or notes
+         */
+        .message {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 12px 15px;
+            margin: 15px 0;
+            border-radius: 3px;
+            font-size: 14px;
+            color: #0277BD;
+        }
+
+        /**
+         * Responsive design for mobile
+         * Stack elements vertically on small screens
+         */
+        @media (max-width: 600px) {
+            .container {
+                padding: 10px;
+            }
+
+            .header {
+                padding: 20px 10px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .content {
+                padding: 20px 10px;
+            }
+
+            .event-details {
+                padding: 15px;
+            }
+
+            .event-details h2 {
+                font-size: 18px;
+            }
+
+            .detail-row {
+                flex-direction: column;
+            }
+
+            .detail-label {
+                margin-bottom: 5px;
+            }
+
+            .detail-value {
+                text-align: left;
+            }
+
+            .cta-button {
+                width: 100%;
+                box-sizing: border-box;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 
+      Main email container
+      Wraps all content in white container with max-width
+    -->
+    <div class="container">
+        <!-- 
+          Header section
+          Branding and notification title
+        -->
+        <div class="header">
+            <h1>🎉 New Event Created</h1>
+        </div>
+
+        <!-- 
+          Main content section
+          Event details and call-to-action
+        -->
+        <div class="content">
+            <!-- 
+              Personalized greeting
+              Addresses user by name and role
+            -->
+            <p class="greeting">
+                Hello <strong>{{userName}}</strong>,
+            </p>
+
+            <p>
+                A new event has been created that is relevant to your role as <strong>{{userRole}}</strong>.
+            </p>
+
+            <!-- 
+              Event details card
+              Contains all important event information
+              Blue left border for visual emphasis
+            -->
+            <div class="event-details">
+                <!-- Event name as main heading -->
+                <h2>{{eventName}}</h2>
+
+                <!-- Event subtitle if provided -->
+                {{#eventSubheading}}<p class="subtitle">{{eventSubheading}}</p>{{/eventSubheading}}
+
+                <!-- Event description if provided -->
+                {{#eventDescription}}<p class="description">{{eventDescription}}</p>{{/eventDescription}}
+
+                <!-- Event date and time details -->
+                <div class="detail-row">
+                    <span class="detail-label">Start Time:</span>
+                    <span class="detail-value">{{eventStartTime}}</span>
+                </div>
+
+                <div class="detail-row">
+                    <span class="detail-label">End Time:</span>
+                    <span class="detail-value">{{eventEndTime}}</span>
+                </div>
+
+                <div class="detail-row">
+                    <span class="detail-label">Timezone:</span>
+                    <span class="detail-value">{{eventTimezone}}</span>
+                </div>
+
+                <div class="detail-row">
+                    <span class="detail-label">Event ID:</span>
+                    <span class="detail-value">#{{eventId}}</span>
+                </div>
+            </div>
+
+            <!-- 
+              Call-to-action button
+              Prominent blue button linking to event
+              URL constructed from APP_URL and eventId
+            -->
+            <div style="text-align: center;">
+                <a href="{{eventLink}}" class="cta-button">View Event Details →</a>
+            </div>
+
+            <!-- 
+              Additional information message
+              Optional context for recipients
+            -->
+            <div class="message">
+                <strong>Note:</strong> This event is now visible to all users with the 
+                <strong>{{userRole}}</strong> role. You can view and interact with it from your dashboard.
+            </div>
+
+            <p>
+                If you have any questions about this event, please contact the event administrator.
+            </p>
+
+            <p>
+                Best regards,<br>
+                <strong>Event Management System</strong>
+            </p>
+        </div>
+
+        <!-- 
+          Footer section
+          Legal and contact information
+          Unsubscribe link (if applicable)
+        -->
+        <div class="footer">
+            <p>© 2026 Event Management System. All rights reserved.</p>
+            <p>
+                <a href="{{APP_URL}}/unsubscribe?email={{recipientEmail}}">Unsubscribe</a> | 
+                <a href="{{APP_URL}}/preferences">Email Preferences</a>
+            </p>
+            <p>
+                Event Management System<br>
+                <a href="{{APP_URL}}">Visit Dashboard</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>

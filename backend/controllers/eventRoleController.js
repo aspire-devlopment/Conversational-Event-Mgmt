@@ -18,7 +18,9 @@
 const HTTP_STATUS = require('../constants/httpStatus');
 const { sendSuccess } = require('../utils/response');
 
+// Build handlers for listing and changing event-to-role mappings.
 const createEventRoleController = (eventRoleRepository) => ({
+  // Return every event-role mapping.
   list: async (req, res) => {
     const items = await eventRoleRepository.list();
     return sendSuccess(res, HTTP_STATUS.OK, 'event-role mappings fetched', {
@@ -27,12 +29,14 @@ const createEventRoleController = (eventRoleRepository) => ({
     });
   },
 
+  // Create one mapping between an event and a role.
   assign: async (req, res) => {
     const { event_id, role_id } = req.body;
     const item = await eventRoleRepository.assign(event_id, role_id);
     return sendSuccess(res, HTTP_STATUS.CREATED, 'role assigned to event', { item });
   },
 
+  // Delete one mapping between an event and a role.
   unassign: async (req, res) => {
     const { event_id, role_id } = req.body;
     await eventRoleRepository.unassign(event_id, role_id);

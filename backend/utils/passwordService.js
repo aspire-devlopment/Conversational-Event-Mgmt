@@ -11,12 +11,7 @@ const bcrypt = require('bcrypt');
 
 const SALT_ROUNDS = 10; // Cost factor for bcrypt hashing
 
-/**
- * Hash a plain text password using bcrypt
- * @param {string} password - Plain text password to hash
- * @returns {Promise<string>} - Hashed password
- * @throws {Error} - If hashing fails
- */
+// Hash a plain text password with bcrypt before storing it in the database.
 const hashPassword = async (password) => {
   try {
     if (!password || password.trim().length === 0) {
@@ -29,13 +24,7 @@ const hashPassword = async (password) => {
   }
 };
 
-/**
- * Compare a plain text password with a hashed password
- * @param {string} plainPassword - Plain text password to verify
- * @param {string} hashedPassword - Hashed password from database
- * @returns {Promise<boolean>} - True if passwords match, false otherwise
- * @throws {Error} - If comparison fails
- */
+// Compare login input against the stored bcrypt hash.
 const comparePassword = async (plainPassword, hashedPassword) => {
   try {
     if (!plainPassword || !hashedPassword) {

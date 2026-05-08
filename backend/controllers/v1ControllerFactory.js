@@ -21,7 +21,9 @@
 const HTTP_STATUS = require('../constants/httpStatus');
 const { sendError, sendSuccess } = require('../utils/response');
 
+// Create standard REST handlers for any service that implements CRUD methods.
 const createCrudController = (service, resourceLabel) => ({
+  // Return all records for the resource.
   list: async (req, res) => {
     const items = await service.list();
     return sendSuccess(res, HTTP_STATUS.OK, `${resourceLabel} fetched`, {
@@ -30,6 +32,7 @@ const createCrudController = (service, resourceLabel) => ({
     });
   },
 
+  // Return one record by request id, or 404 if it is missing.
   getById: async (req, res) => {
     const item = await service.getById(req.params.id);
     if (!item) {
@@ -38,11 +41,13 @@ const createCrudController = (service, resourceLabel) => ({
     return sendSuccess(res, HTTP_STATUS.OK, `${resourceLabel} fetched`, { item });
   },
 
+  // Create one record using the request body.
   create: async (req, res) => {
     const item = await service.create(req.body);
     return sendSuccess(res, HTTP_STATUS.CREATED, `${resourceLabel} created`, { item });
   },
 
+  // Update one record by request id using the request body.
   update: async (req, res) => {
     const item = await service.update(req.params.id, req.body);
     if (!item) {
@@ -51,6 +56,7 @@ const createCrudController = (service, resourceLabel) => ({
     return sendSuccess(res, HTTP_STATUS.OK, `${resourceLabel} updated`, { item });
   },
 
+  // Delete one record by request id.
   remove: async (req, res) => {
     const deleted = await service.remove(req.params.id);
     if (!deleted) {

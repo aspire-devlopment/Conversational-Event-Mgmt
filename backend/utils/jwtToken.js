@@ -21,14 +21,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_change_t
 const JWT_EXPIRATION = process.env.JWT_EXPIRATION || '7d';
 
 class JWTTokenService {
-  /**
-   * Generate JWT token
-   * @param {Object} payload - Token payload (user data)
-   * @param {number} id - User ID
-   * @param {string} email - User email
-   * @param {string} role - User role
-   * @returns {string} Signed JWT token
-   */
+  // Generate a signed JWT containing the user identity used by auth middleware.
   static generateToken(payload) {
     if (!payload || !payload.id || !payload.email) {
       throw new Error('Invalid token payload: id and email are required');
@@ -54,12 +47,7 @@ class JWTTokenService {
     }
   }
 
-  /**
-   * Verify JWT token
-   * @param {string} token - JWT token to verify
-   * @returns {Object} Decoded token payload
-   * @throws {Error} If token is invalid or expired
-   */
+  // Verify a JWT signature and return the decoded payload.
   static verifyToken(token) {
     if (!token) {
       throw new Error('Token is required');
@@ -81,11 +69,7 @@ class JWTTokenService {
     }
   }
 
-  /**
-   * Decode token without verification (for debugging only)
-   * @param {string} token - JWT token to decode
-   * @returns {Object} Decoded token payload
-   */
+  // Decode token contents without verification; useful only for diagnostics.
   static decodeToken(token) {
     if (!token) {
       throw new Error('Token is required');
@@ -98,11 +82,7 @@ class JWTTokenService {
     }
   }
 
-  /**
-   * Check if token is expired
-   * @param {string} token - JWT token
-   * @returns {boolean} True if token is expired
-   */
+  // Check whether a token is expired without throwing verification errors.
   static isTokenExpired(token) {
     try {
       const decoded = jwt.decode(token);
@@ -116,11 +96,7 @@ class JWTTokenService {
     }
   }
 
-  /**
-   * Get token expiration time
-   * @param {string} token - JWT token
-   * @returns {Date|null} Expiration date or null if not available
-   */
+  // Return the token expiration as a Date, or null when unavailable.
   static getTokenExpiration(token) {
     try {
       const decoded = jwt.decode(token);

@@ -18,11 +18,33 @@ const HTTP_STATUS = require('../constants/httpStatus');
 const MESSAGES = require('../constants/messages');
 const { sendError, sendSuccess } = require('../utils/response');
 
+// Build auth request handlers with the injected authentication service.
 const createAuthController = (authService) => ({
+  // Authenticate credentials and return a JWT plus sanitized user profile.
   login: async (req, res, next) => {
     try {
       const { email, password } = req.body;
+      console.log('[authController.login] START', { emailType: typeof email, passwordType: typeof password, passwordLength: password ? password.length : 0 });
+      // Validate input types to avoid passing non-string passwords
+      // into downstream libraries (bcrypt / DB drivers) which can
+      // produce low-level errors like "client password must be a string".
+      if (typeof password !== 'string') {
+        return sendError(
+          res,
+          HTTP_STATUS.BAD_REQUEST,
+          'Password must be a string'
+        );
+      }
+      if (password.trim().length === 0) {
+        return sendError(
+          res,
+          HTTP_STATUS.BAD_REQUEST,
+          'Password cannot be empty'
+        );
+      }
+      console.log('[authController.login] CALLING authService.login');
       const authData = await authService.login(email, password);
+      console.log('[authController.login] authService.login SUCCESS');
       if (!authData) {
         return sendError(
           res,
@@ -38,10 +60,12 @@ const createAuthController = (authService) => ({
         authData
       );
     } catch (error) {
+      console.error('[authController.login] ERROR:', { message: error.message, stack: error.stack });
       return next(error);
     }
   },
 
+  // Register a new user and return the same auth payload as login.
   register: async (req, res, next) => {
     try {
       const result = await authService.register(req.body);
@@ -56,6 +80,7 @@ const createAuthController = (authService) => ({
     }
   },
 
+  // Handle logout requests; token invalidation is currently stateless.
   logout: async (req, res, next) => {
     try {
       const token = req.headers.authorization?.replace('Bearer ', '');
@@ -66,6 +91,7 @@ const createAuthController = (authService) => ({
     }
   },
 
+  // Return the authenticated profile that JWT middleware attached to req.user.
   getProfile: async (req, res, next) => {
     try {
       // req.user is populated by verifyJWTToken middleware

@@ -1,6 +1,13 @@
+/**
+ * File: jsonLogger.js
+ * Purpose: JSON-formatted logging with redaction.
+ * Description: Builds structured log entries for console/file output and removes
+ *              sensitive values before anything is written.
+ */
 const util = require('util');
 const fileLogger = require('./fileLogger');
 
+// Recursively replace sensitive fields before logs are printed or written.
 const redactSensitive = (value) => {
   if (!value || typeof value !== 'object') return value;
 
@@ -32,14 +39,7 @@ const redactSensitive = (value) => {
   return clone;
 };
 
-/**
- * File: jsonLogger.js
- * Purpose: JSON-formatted console logging
- * Description: Utility for structured JSON logging to console:
- *              logJson() - output data as JSON with timestamp and level.
- *              Used for request logging, error tracking, and debugging.
- */
-
+// JSON stringify safely, falling back to util.inspect when circular data appears.
 const safeStringify = (value) => {
   try {
     return JSON.stringify(value);
@@ -51,6 +51,7 @@ const safeStringify = (value) => {
   }
 };
 
+// Build a structured log entry and send it to console plus daily file logs.
 const logJson = (level, payload) => {
   const entry = {
     level,

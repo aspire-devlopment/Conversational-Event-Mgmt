@@ -16,10 +16,12 @@ const { hashPassword, comparePassword } = require('../utils/passwordService');
 const { VALID_USER_ROLES } = require('../constants/appConfig');
 
 class AuthService {
+  // Store the user repository used for credential and profile lookups.
   constructor(userRepository) {
     this.userRepository = userRepository;
   }
 
+  // Remove database-only/sensitive fields before returning a user to the client.
   sanitizeUser(user) {
     const result = {
       id: user.id,
@@ -35,9 +37,13 @@ class AuthService {
     return result;
   }
 
+  // Authenticate email/password credentials and issue a JWT on success.
   async login(email, password) {
+    console.log('[authService.login] START', { email, passwordType: typeof password });
     const normalizedEmail = normalizeEmail(email);
+    console.log('[authService.login] CALLING findByEmail', { normalizedEmail });
     const user = await this.userRepository.findByEmail(normalizedEmail);
+    console.log('[authService.login] findByEmail returned', { userExists: !!user });
 
     if (!user) {
       const error = new Error(MESSAGES.AUTH.INVALID_CREDENTIALS);
@@ -67,6 +73,7 @@ class AuthService {
     };
   }
 
+  // Validate registration input, hash the password, create the user, and issue a JWT.
   async register(payload) {
     try {
       const { email, firstName, lastName, phone, password, role } = payload;
@@ -136,6 +143,7 @@ class AuthService {
     }
   }
 
+  // Verify a token during logout; this API does not persist a token blacklist.
   logout(token) {
     try {
       JWTTokenService.verifyToken(token);
@@ -145,6 +153,7 @@ class AuthService {
     }
   }
 
+  // Decode a JWT and return the profile fields stored inside the token.
   async getProfile(token) {
     const decoded = JWTTokenService.verifyToken(token);
     return {

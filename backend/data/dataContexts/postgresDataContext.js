@@ -21,17 +21,36 @@ class PostgresDataContext {
 
   // Executes a SELECT query and returns rows
   async query(sql, params = []) {
-    const { rows } = await this.pool.query(sql, params);
-    return rows;
+    try {
+      const { rows } = await this.pool.query(sql, params);
+      return rows;
+    } catch (err) {
+      console.error('[DataContext.query] Error:', {
+        message: err.message,
+        sql: sql.substring(0, 50),
+        paramsCount: params.length,
+      });
+      throw err;
+    }
   }
 
   // Executes an INSERT, UPDATE, or DELETE query and returns rowCount or rows
   async execute(sql, params = []) {
-    const result = await this.pool.query(sql, params);
-    return result;
+    try {
+      const result = await this.pool.query(sql, params);
+      return result;
+    } catch (err) {
+      console.error('[DataContext.execute] Error:', {
+        message: err.message,
+        sql: sql.substring(0, 50),
+        paramsCount: params.length,
+      });
+      throw err;
+    }
   }
 
   async withTransaction(work) {
+    // Repositories use this when multiple writes must succeed or fail together.
     const client = await this.pool.connect();
 
     const tx = {

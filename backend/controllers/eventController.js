@@ -17,13 +17,13 @@ const HTTP_STATUS = require('../constants/httpStatus');
 const MESSAGES = require('../constants/messages');
 const { sendError, sendSuccess } = require('../utils/response');
 
+// Normalize role names so access checks are case-insensitive and predictable.
 function normalizeRoleName(role) {
-  // Normalize role names so access checks are case-insensitive and predictable.
   return String(role || '').trim().toLowerCase();
 }
 
+// Check whether an event is visible to a specific role name.
 function eventHasRole(event, roleName) {
-  // A user can see an event when the event is explicitly tagged with their role.
   const target = normalizeRoleName(roleName);
   if (!target) return false;
   return (Array.isArray(event?.roles) ? event.roles : []).some(
@@ -31,8 +31,8 @@ function eventHasRole(event, roleName) {
   );
 }
 
+// Decide if the authenticated user can access an event.
 function canUserAccessEvent(event, user) {
-  // Admin sees everything; other users see their own events or events tagged for their role.
   const userRole = normalizeRoleName(user?.role);
   const userId = Number(user?.id);
   const createdBy = Number(event?.created_by);
@@ -45,6 +45,7 @@ function canUserAccessEvent(event, user) {
   return eventHasRole(event, userRole);
 }
 
+// Build event CRUD handlers with injected repositories.
 const createEventController = (
   eventRepository,
   roleRepository,
@@ -96,10 +97,16 @@ const createEventController = (
       if (req.user?.id) {
         payload.created_by = req.user.id;
       }
+
+      /**
+       * Create event with roles in database
+       * This is a transactional operation - event and roles saved together
+       */
       const hydratedEvent = await eventRepository.createWithRoles(payload, payload.roles);
       if (!hydratedEvent) {
         return sendError(res, HTTP_STATUS.INTERNAL_SERVER_ERROR, MESSAGES.EVENTS.CREATE_FAILED);
       }
+
       const responseBody = {
         status: 'success',
         message: MESSAGES.EVENTS.CREATE_SUCCESS,
@@ -127,6 +134,7 @@ const createEventController = (
       if (!event) {
         return sendError(res, HTTP_STATUS.NOT_FOUND, MESSAGES.EVENTS.EVENT_NOT_FOUND);
       }
+
       return sendSuccess(
         res,
         HTTP_STATUS.OK,

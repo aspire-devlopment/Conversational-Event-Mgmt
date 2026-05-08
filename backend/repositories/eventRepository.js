@@ -7,10 +7,12 @@
  */
 
 class EventRepository {
+  // Store the database context used for event and role mapping queries.
   constructor(dataContext) {
     this.dataContext = dataContext;
   }
 
+  // Build the shared SELECT that returns event fields with their role names.
   baseSelectSql() {
     return `
       SELECT e.id, e.name, e.subheading, e.description, e.banner_url, e.timezone, e.status,
@@ -25,6 +27,7 @@ class EventRepository {
     `;
   }
 
+  // Return all events with role names, newest event IDs first.
   async list() {
     const q = `
       ${this.baseSelectSql()}
@@ -34,10 +37,12 @@ class EventRepository {
     return this.dataContext.query(q);
   }
 
+  // Return one complete event by id using the default data context.
   async getById(id) {
     return this.getByIdWithContext(this.dataContext, id);
   }
 
+  // Insert only the event row without role mappings.
   async create(payload) {
     const q = `
       INSERT INTO events (
@@ -65,6 +70,7 @@ class EventRepository {
     return rows[0];
   }
 
+  // Create the event row and role join rows together so the event is never half-saved.
   async createWithRoles(payload, roleNames = []) {
     return this.dataContext.withTransaction(async (tx) => {
       const rows = await tx.query(
@@ -99,6 +105,7 @@ class EventRepository {
     });
   }
 
+  // Partially update only event columns without changing role mappings.
   async update(id, payload) {
     const q = `
       UPDATE events
@@ -136,6 +143,7 @@ class EventRepository {
     return rows[0] || null;
   }
 
+  // Update event fields and, when provided, replace the role set in the same transaction.
   async updateWithRoles(id, payload, roleNames = null) {
     return this.dataContext.withTransaction(async (tx) => {
       const rows = await tx.query(
@@ -184,11 +192,13 @@ class EventRepository {
     });
   }
 
+  // Delete one event; role mappings cascade through the database constraint.
   async remove(id) {
     const result = await this.dataContext.execute('DELETE FROM events WHERE id = $1', [id]);
     return result.rowCount > 0;
   }
 
+  // Find an existing event matching the normalized identity and exact role set.
   async findEquivalentEvent(identity, excludeEventId = null) {
     const q = `
       ${this.baseSelectSql()}
@@ -227,6 +237,7 @@ class EventRepository {
     return rows[0] || null;
   }
 
+  // Translate role names to role IDs and insert missing many-to-many mappings.
   async syncEventRoles(context, eventId, roleNames = []) {
     if (!Array.isArray(roleNames) || roleNames.length === 0) {
       return;
@@ -251,6 +262,7 @@ class EventRepository {
     }
   }
 
+  // Return one complete event by id using a supplied context/transaction.
   async getByIdWithContext(context, id) {
     const q = `
       ${this.baseSelectSql()}

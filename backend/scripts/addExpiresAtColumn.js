@@ -6,7 +6,7 @@
  * Description: Adds the expires_at column if it doesn't exist
  */
 
-require('dotenv').config();
+require('../config/env');
 const { Pool } = require('pg');
 
 const pool = new Pool({

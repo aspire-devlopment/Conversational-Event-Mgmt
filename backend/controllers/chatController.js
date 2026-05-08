@@ -1,5 +1,10 @@
 #!/usr/bin/env node
 
+/**
+ * Chat controller for AI-assisted event creation and editing.
+ * It owns the HTTP flow: create/resume chat sessions, pass messages to the LLM,
+ * persist the evolving draft, and commit a valid confirmed draft into events.
+ */
 const asyncHandler = require('../middleware/asyncHandler');
 const logger = require('../utils/logger');
 const openaiService = require('../services/openaiService');
@@ -8,8 +13,8 @@ const { buildEventIdentity, hashEventIdentity } = require('../utils/eventIdentit
 const { EVENT_FIELD_INFO } = require('../services/chatEventUtils');
 const MAX_MESSAGE_LENGTH = 4000;
 
+// Load the saved chat session and its draft so we can resume after refresh.
 async function getSessionData(chatSessionRepository, sessionId) {
-  // Load the saved chat session and its draft so we can resume after refresh.
   const session = await chatSessionRepository.getById(sessionId);
   if (!session) return null;
 
@@ -20,12 +25,13 @@ async function getSessionData(chatSessionRepository, sessionId) {
   return { session, sessionData };
 }
 
+// Check whether the authenticated user owns the chat session.
 function isSessionOwner(session, userId) {
   return Number(session?.user_id) === Number(userId);
 }
 
+// Convert the DB event row into the draft shape used by the chat assistant.
 function mapEventToDraft(event) {
-  // Convert the DB event row into the draft shape used by the chat assistant.
   return {
     id: event.id,
     name: event.name || null,
@@ -42,10 +48,12 @@ function mapEventToDraft(event) {
   };
 }
 
+// Return field metadata used by the frontend to render the event form.
 function buildFieldInfo() {
   return EVENT_FIELD_INFO;
 }
 
+// Return a localized success message after event creation/update is committed.
 function getCommitSuccessMessage(language = 'en', isUpdate = false) {
   const normalized = openaiService.normalizeLanguage(language);
   if (normalized === 'de') {
@@ -63,8 +71,8 @@ function getCommitSuccessMessage(language = 'en', isUpdate = false) {
     : 'The event was created successfully.';
 }
 
+// Detect explicit user approval so the controller knows when it can save the event.
 function isConfirmationMessage(message = '') {
-  // Keep the final save trigger explicit so the model does not auto-commit too early.
   const normalized = String(message || '').trim().toLowerCase();
   if (!normalized) return false;
 
@@ -123,6 +131,190 @@ function isConfirmationMessage(message = '') {
   return looksLikeApproval && /\b(ok|okay|yes|yep|sure|good|fine|done|update|save|confirm|all set|all good|looks good|looks fine)\b/i.test(normalized);
 }
 
+// Detect the explicit admin command that should send event notification emails.
+function isSendEmailMessage(message = '') {
+  const normalized = String(message || '').trim().toLowerCase();
+  if (!normalized) return false;
+
+  return (
+    /\b(send|queue|trigger)\b/.test(normalized) &&
+    /\b(email|emails|mail|notification|notifications)\b/.test(normalized)
+  );
+}
+
+function isSendAllPendingEventsMessage(message = '') {
+  const normalized = String(message || '').trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    /\b(send|queue|trigger)\b/.test(normalized) &&
+    /\b(email|emails|mail|notification|notifications)\b/.test(normalized) &&
+    /\b(all)\b/.test(normalized) &&
+    /\b(pending)\b/.test(normalized) &&
+    /\b(event|events)\b/.test(normalized)
+  );
+}
+
+function hasEventCreationDetails(message = '') {
+  const normalized = String(message || '').trim().toLowerCase();
+  return /\b(create|event|called|named|name|subheading|description|banner|timezone|status|start|end|vanish|role|roles)\b/.test(normalized);
+}
+
+function isCancelMessage(message = '') {
+  const normalized = String(message || '').trim().toLowerCase();
+  return /^(no|nope|cancel|do not|don't|dont|skip|not now)([.!?]*)$/.test(normalized);
+}
+
+function isPublishedStatus(status = '') {
+  return String(status || '').trim().toLowerCase() === 'published';
+}
+
+function getEmailQueuedMessage(language = 'en', result = {}) {
+  const normalized = openaiService.normalizeLanguage(language);
+  const queued = Number(result.queued || 0);
+  const failed = Number(result.failed || 0);
+
+  if (normalized === 'de') {
+    return `E-Mail-Benachrichtigungen wurden in die Warteschlange gestellt. Erfolgreich: ${queued}, fehlgeschlagen: ${failed}.`;
+  }
+  if (normalized === 'fr') {
+    return `Les notifications par e-mail ont ete placees dans la file d attente. Reussies : ${queued}, echouees : ${failed}.`;
+  }
+  return `Email notifications have been queued. Queued: ${queued}, failed: ${failed}.`;
+}
+
+function getEmailConfirmationMessage(language = 'en', event = {}) {
+  const normalized = openaiService.normalizeLanguage(language);
+  const status = event.status || 'not set';
+  const name = event.name || 'this event';
+
+  if (normalized === 'de') {
+    return `"${name}" hat den Status "${status}". Moechten Sie die E-Mail-Benachrichtigungen trotzdem senden?`;
+  }
+  if (normalized === 'fr') {
+    return `"${name}" a le statut "${status}". Voulez-vous quand meme envoyer les notifications par e-mail ?`;
+  }
+  return `"${name}" is currently "${status}", not Published. Do you still want to send the email notifications?`;
+}
+
+function extractEventNameFromMessage(message = '') {
+  const raw = String(message || '').trim();
+  if (!raw) return null;
+
+  // Prefer quoted names: send email for "Tech Summit"
+  const quoted = raw.match(/["'`“”](.+?)["'`“”]/);
+  if (quoted?.[1]) return quoted[1].trim();
+
+  // Fallback pattern: send email for event Tech Summit
+  const forEvent = raw.match(/\b(?:for|of|about)\s+(?:the\s+)?event\s+(.+)$/i);
+  if (forEvent?.[1]) return forEvent[1].trim();
+
+  const namedEvent = raw.match(/\bevent\s+(.+)$/i);
+  if (namedEvent?.[1]) return namedEvent[1].trim();
+
+  return null;
+}
+
+function extractEventIdFromMessage(message = '') {
+  const raw = String(message || '').trim();
+  if (!raw) return null;
+  const match = raw.match(/\b(?:event\s*id|id)\s*[:#-]?\s*(\d+)\b/i) || raw.match(/^\s*(\d+)\s*$/);
+  return match?.[1] ? Number(match[1]) : null;
+}
+
+function extractEventIdsFromMessage(message = '') {
+  const raw = String(message || '');
+  if (!raw.trim()) return [];
+  const matches = raw.match(/\b\d+\b/g) || [];
+  return [...new Set(matches.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))];
+}
+
+function formatCandidateDate(value) {
+  if (!value) return 'date not set';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toISOString().slice(0, 10);
+}
+
+async function findEventByNameForEmail(eventRepository, eventName, user) {
+  const events = await eventRepository.list();
+  const normalizedName = String(eventName || '').trim().toLowerCase();
+  if (!normalizedName) return { match: null, candidates: [] };
+
+  const visibleEvents = (events || []).filter((event) => (
+    user?.role === 'Admin' || Number(event.created_by) === Number(user?.id)
+  ));
+
+  const exact = visibleEvents.find(
+    (event) => String(event.name || '').trim().toLowerCase() === normalizedName
+  );
+  if (exact) return { match: exact, candidates: [exact] };
+
+  const candidates = visibleEvents.filter((event) =>
+    String(event.name || '').toLowerCase().includes(normalizedName)
+  );
+  if (candidates.length === 1) {
+    return { match: candidates[0], candidates };
+  }
+  return { match: null, candidates };
+}
+
+async function queueNotificationsForEvent(eventRepository, eventId, language = 'en') {
+  const notificationService = require('../services/notificationService');
+  const emailNotificationRepository = notificationService.emailNotificationRepository;
+  if (emailNotificationRepository?.hasSuccessfulNotificationForEvent) {
+    const alreadySent = await emailNotificationRepository.hasSuccessfulNotificationForEvent(eventId);
+    if (alreadySent) {
+      return {
+        result: { queued: 0, failed: 0, skippedAlreadySent: 1 },
+        reply: `Email notifications were already sent for event ID ${eventId}. Skipping duplicate send.`,
+        alreadySent: true,
+      };
+    }
+  }
+
+  const event = await eventRepository.getById(eventId);
+  if (!event) {
+    const error = new Error('Event not found for email notification');
+    error.statusCode = HTTP_STATUS.NOT_FOUND;
+    throw error;
+  }
+
+  const roles = Array.isArray(event.roles) ? event.roles : [];
+  if (roles.length === 0) {
+    const error = new Error('This event has no roles, so there are no role users to notify');
+    error.statusCode = HTTP_STATUS.BAD_REQUEST;
+    throw error;
+  }
+
+  const result = await notificationService.notifyRoleUsersOfEvent(event, roles);
+
+  return {
+    result,
+    reply: getEmailQueuedMessage(language, result),
+    alreadySent: false,
+  };
+}
+
+async function buildEmailSendOrConfirmation(eventRepository, eventId, language = 'en') {
+  const event = await eventRepository.getById(eventId);
+  if (!event) {
+    const error = new Error('Event not found for email notification');
+    error.statusCode = HTTP_STATUS.NOT_FOUND;
+    throw error;
+  }
+
+  if (!isPublishedStatus(event.status)) {
+    return {
+      needsConfirmation: true,
+      event,
+      reply: getEmailConfirmationMessage(language, event),
+    };
+  }
+
+  return queueNotificationsForEvent(eventRepository, eventId, language);
+}
+
+// Build the chat controller with injected repositories for testability and separation.
 const createChatController = (
   chatSessionRepository,
   eventRepository,
@@ -250,7 +442,450 @@ const createChatController = (
       await chatSessionRepository.addMessage(sessionId, 'user', message);
       const refreshed = await getSessionData(chatSessionRepository, sessionId);
       sessionData = refreshed?.sessionData || sessionData;
+      const requestedEmailSend = isSendEmailMessage(message);
+      const requestedSendAllPending = isSendAllPendingEventsMessage(message);
 
+      if (requestedSendAllPending) {
+        if (req.user?.role !== 'Admin') {
+          return res.status(HTTP_STATUS.FORBIDDEN).json({
+            success: false,
+            error: 'Only admins can send email notifications for all pending events',
+          });
+        }
+
+        const allEvents = await eventRepository.list();
+        const pendingEvents = (allEvents || []).filter(
+          (event) => String(event.status || '').trim().toLowerCase() === 'pending'
+        );
+
+        if (pendingEvents.length === 0) {
+          const reply = 'No pending events were found.';
+          await chatSessionRepository.addMessage(sessionId, 'bot', reply);
+          return res.status(HTTP_STATUS.OK).json({
+            reply,
+            sessionId,
+            language: sessionData.language || requestLanguage,
+            intent: 'send_email_all_pending',
+            confidence: 1,
+            nextStep: 'email',
+            eventCreated: false,
+            eventUpdated: false,
+            emailQueued: false,
+            emailResult: { queued: 0, failed: 0, skipped: 0 },
+            eventDraft: sessionData.event_draft || null,
+            suggestions: [],
+            summary: sessionData.event_draft
+              ? openaiService.buildSummary(sessionData.event_draft)
+              : undefined,
+            validation: sessionData.event_draft
+              ? openaiService.validateEventData(sessionData.event_draft)
+              : undefined,
+            fieldInfo: buildFieldInfo(),
+          });
+        }
+
+        let queued = 0;
+        let failed = 0;
+        let skipped = 0;
+
+        for (const event of pendingEvents) {
+          try {
+            const result = await queueNotificationsForEvent(
+              eventRepository,
+              event.id,
+              sessionData.language || requestLanguage
+            );
+            if (result.alreadySent) {
+              skipped += 1;
+            } else {
+              queued += Number(result.result?.queued || 0);
+              failed += Number(result.result?.failed || 0);
+            }
+          } catch (error) {
+            failed += 1;
+          }
+        }
+
+        const reply = `Processed pending events email request. Queued: ${queued}, failed: ${failed}, skipped (already sent): ${skipped}.`;
+        await chatSessionRepository.addMessage(sessionId, 'bot', reply);
+        return res.status(HTTP_STATUS.OK).json({
+          reply,
+          sessionId,
+          language: sessionData.language || requestLanguage,
+          intent: 'send_email_all_pending',
+          confidence: 1,
+          nextStep: 'email',
+          eventCreated: false,
+          eventUpdated: false,
+          emailQueued: queued > 0,
+          emailResult: { queued, failed, skipped },
+          eventDraft: sessionData.event_draft || null,
+          suggestions: [],
+          summary: sessionData.event_draft
+            ? openaiService.buildSummary(sessionData.event_draft)
+            : undefined,
+          validation: sessionData.event_draft
+            ? openaiService.validateEventData(sessionData.event_draft)
+            : undefined,
+          fieldInfo: buildFieldInfo(),
+        });
+      }
+
+      if (sessionData.pending_email_confirmation?.eventId) {
+        if (isConfirmationMessage(message)) {
+          if (req.user?.role !== 'Admin') {
+            return res.status(HTTP_STATUS.FORBIDDEN).json({
+              success: false,
+              error: 'Only admins can send event notification emails',
+            });
+          }
+
+          const emailResult = await queueNotificationsForEvent(
+            eventRepository,
+            sessionData.pending_email_confirmation.eventId,
+            sessionData.language || requestLanguage
+          );
+
+          const nextSessionData = {
+            ...sessionData,
+            pending_email_confirmation: null,
+            state: 'email_sent',
+            current_step: 'email_sent',
+          };
+          await chatSessionRepository.update(sessionId, {
+            session_data: nextSessionData,
+            current_step: 'email_sent',
+            language: sessionData.language || requestLanguage,
+          });
+          await chatSessionRepository.addMessage(sessionId, 'bot', emailResult.reply);
+
+          return res.status(HTTP_STATUS.OK).json({
+            reply: emailResult.reply,
+            sessionId,
+            language: sessionData.language || requestLanguage,
+            intent: 'send_email',
+            confidence: 1,
+            nextStep: 'email_sent',
+            eventCreated: false,
+            eventUpdated: false,
+            emailQueued: true,
+            emailResult: emailResult.result,
+            eventDraft: sessionData.event_draft || null,
+            suggestions: [],
+            summary: sessionData.event_draft
+              ? openaiService.buildSummary(sessionData.event_draft)
+              : undefined,
+            validation: sessionData.event_draft
+              ? openaiService.validateEventData(sessionData.event_draft)
+              : undefined,
+            fieldInfo: buildFieldInfo(),
+          });
+        }
+
+        if (isCancelMessage(message)) {
+          const reply = 'Okay, I will not send the email notifications yet.';
+          await chatSessionRepository.update(sessionId, {
+            session_data: {
+              ...sessionData,
+              pending_email_confirmation: null,
+              state: 'event_created',
+              current_step: 'email',
+            },
+            current_step: 'email',
+            language: sessionData.language || requestLanguage,
+          });
+          await chatSessionRepository.addMessage(sessionId, 'bot', reply);
+
+          return res.status(HTTP_STATUS.OK).json({
+            reply,
+            sessionId,
+            language: sessionData.language || requestLanguage,
+            intent: 'send_email_cancelled',
+            confidence: 1,
+            nextStep: 'email',
+            eventCreated: false,
+            eventUpdated: false,
+            emailQueued: false,
+            eventDraft: sessionData.event_draft || null,
+            suggestions: [],
+            summary: sessionData.event_draft
+              ? openaiService.buildSummary(sessionData.event_draft)
+              : undefined,
+            validation: sessionData.event_draft
+              ? openaiService.validateEventData(sessionData.event_draft)
+              : undefined,
+            fieldInfo: buildFieldInfo(),
+          });
+        }
+      }
+
+      const awaitingEmailEventName = Boolean(sessionData.awaiting_email_event_name);
+      if ((requestedEmailSend || awaitingEmailEventName) && (sessionData.event_id || sessionData.event_draft?.id || !hasEventCreationDetails(message))) {
+        if (req.user?.role !== 'Admin') {
+          return res.status(HTTP_STATUS.FORBIDDEN).json({
+            success: false,
+            error: 'Only admins can send event notification emails',
+          });
+        }
+
+        const targetEventId = sessionData.event_id || sessionData.event_draft?.id || null;
+        let resolvedEventId = targetEventId;
+        const requestedEventIds = extractEventIdsFromMessage(message);
+
+        if (!resolvedEventId && requestedEventIds.length > 1) {
+          let queued = 0;
+          let failed = 0;
+          let skipped = 0;
+          const invalid = [];
+
+          for (const eventId of requestedEventIds) {
+            const eventById = await eventRepository.getById(eventId);
+            if (!eventById || (req.user?.role !== 'Admin' && Number(eventById.created_by) !== Number(req.user?.id))) {
+              invalid.push(eventId);
+              continue;
+            }
+
+            try {
+              const result = await buildEmailSendOrConfirmation(
+                eventRepository,
+                eventById.id,
+                sessionData.language || requestLanguage
+              );
+
+              if (result.needsConfirmation) {
+                // For multi-send, non-published items are skipped instead of interactive confirmation.
+                skipped += 1;
+                continue;
+              }
+
+              if (result.alreadySent) {
+                skipped += 1;
+                continue;
+              }
+
+              queued += Number(result.result?.queued || 0);
+              failed += Number(result.result?.failed || 0);
+            } catch (error) {
+              failed += 1;
+            }
+          }
+
+          const reply = `Processed events ${requestedEventIds.join(', ')}. Queued: ${queued}, failed: ${failed}, skipped: ${skipped}${invalid.length ? `, invalid/not accessible IDs: ${invalid.join(', ')}` : ''}.`;
+          await chatSessionRepository.addMessage(sessionId, 'bot', reply);
+          return res.status(HTTP_STATUS.OK).json({
+            reply,
+            sessionId,
+            language: sessionData.language || requestLanguage,
+            intent: 'send_email',
+            confidence: 1,
+            nextStep: 'email',
+            eventCreated: false,
+            eventUpdated: false,
+            emailQueued: queued > 0,
+            emailResult: { queued, failed, skipped, invalid },
+            eventDraft: sessionData.event_draft || null,
+            suggestions: [],
+            summary: sessionData.event_draft
+              ? openaiService.buildSummary(sessionData.event_draft)
+              : undefined,
+            validation: sessionData.event_draft
+              ? openaiService.validateEventData(sessionData.event_draft)
+              : undefined,
+            fieldInfo: buildFieldInfo(),
+          });
+        }
+
+        if (!resolvedEventId) {
+          const requestedEventId = extractEventIdFromMessage(message);
+          if (requestedEventId) {
+            const eventById = await eventRepository.getById(requestedEventId);
+            if (eventById && (req.user?.role === 'Admin' || Number(eventById.created_by) === Number(req.user?.id))) {
+              resolvedEventId = eventById.id;
+            } else {
+              const reply = `I could not find an event with ID ${requestedEventId}. Please provide a valid event ID or exact event name.`;
+              await chatSessionRepository.update(sessionId, {
+                session_data: {
+                  ...sessionData,
+                  awaiting_email_event_name: true,
+                  state: 'awaiting_email_event_name',
+                  current_step: 'email_event_name',
+                },
+                current_step: 'email_event_name',
+                language: sessionData.language || requestLanguage,
+              });
+              await chatSessionRepository.addMessage(sessionId, 'bot', reply);
+
+              return res.status(HTTP_STATUS.OK).json({
+                reply,
+                sessionId,
+                language: sessionData.language || requestLanguage,
+                intent: 'send_email',
+                confidence: 1,
+                nextStep: 'email_event_name',
+                eventCreated: false,
+                eventUpdated: false,
+                emailQueued: false,
+                emailConfirmationRequired: false,
+                eventDraft: sessionData.event_draft || null,
+                suggestions: [],
+                summary: sessionData.event_draft
+                  ? openaiService.buildSummary(sessionData.event_draft)
+                  : undefined,
+                validation: sessionData.event_draft
+                  ? openaiService.validateEventData(sessionData.event_draft)
+                  : undefined,
+                fieldInfo: buildFieldInfo(),
+              });
+            }
+          }
+
+        }
+
+        if (!resolvedEventId) {
+          const requestedEventName = extractEventNameFromMessage(message);
+
+          if (!requestedEventName) {
+            const reply = 'Please tell me the event name first, for example: send email for "Tech Summit 2026".';
+            await chatSessionRepository.update(sessionId, {
+              session_data: {
+                ...sessionData,
+                awaiting_email_event_name: true,
+                state: 'awaiting_email_event_name',
+                current_step: 'email_event_name',
+              },
+              current_step: 'email_event_name',
+              language: sessionData.language || requestLanguage,
+            });
+            await chatSessionRepository.addMessage(sessionId, 'bot', reply);
+
+            return res.status(HTTP_STATUS.OK).json({
+              reply,
+              sessionId,
+              language: sessionData.language || requestLanguage,
+              intent: 'send_email',
+              confidence: 1,
+              nextStep: 'email_event_name',
+              eventCreated: false,
+              eventUpdated: false,
+              emailQueued: false,
+              emailConfirmationRequired: false,
+              eventDraft: sessionData.event_draft || null,
+              suggestions: [],
+              summary: sessionData.event_draft
+                ? openaiService.buildSummary(sessionData.event_draft)
+                : undefined,
+              validation: sessionData.event_draft
+                ? openaiService.validateEventData(sessionData.event_draft)
+                : undefined,
+              fieldInfo: buildFieldInfo(),
+            });
+          }
+
+          const lookup = await findEventByNameForEmail(eventRepository, requestedEventName, req.user);
+          if (!lookup.match) {
+            const candidateRows = (lookup.candidates || [])
+              .slice(0, 5)
+              .map((e) => `- ID ${e.id}: "${e.name}" (${formatCandidateDate(e.start_time)})`)
+              .join('\n');
+            const reply = candidateRows
+              ? `I found multiple events matching "${requestedEventName}". Reply with exact event name or event ID.\n${candidateRows}`
+              : `I could not find an event named "${requestedEventName}". Please provide the exact event name.`;
+
+            await chatSessionRepository.update(sessionId, {
+              session_data: {
+                ...sessionData,
+                awaiting_email_event_name: true,
+                state: 'awaiting_email_event_name',
+                current_step: 'email_event_name',
+              },
+              current_step: 'email_event_name',
+              language: sessionData.language || requestLanguage,
+            });
+            await chatSessionRepository.addMessage(sessionId, 'bot', reply);
+
+            return res.status(HTTP_STATUS.OK).json({
+              reply,
+              sessionId,
+              language: sessionData.language || requestLanguage,
+              intent: 'send_email',
+              confidence: 1,
+              nextStep: 'email_event_name',
+              eventCreated: false,
+              eventUpdated: false,
+              emailQueued: false,
+              emailConfirmationRequired: false,
+              eventDraft: sessionData.event_draft || null,
+              suggestions: [],
+              summary: sessionData.event_draft
+                ? openaiService.buildSummary(sessionData.event_draft)
+                : undefined,
+              validation: sessionData.event_draft
+                ? openaiService.validateEventData(sessionData.event_draft)
+                : undefined,
+              fieldInfo: buildFieldInfo(),
+            });
+          }
+
+          resolvedEventId = lookup.match.id;
+        }
+
+        if (!resolvedEventId) {
+          return res.status(HTTP_STATUS.BAD_REQUEST).json({
+            success: false,
+            error: 'Create or select an event before sending notification emails',
+          });
+        }
+
+        const emailResult = await buildEmailSendOrConfirmation(
+          eventRepository,
+          resolvedEventId,
+          sessionData.language || requestLanguage
+        );
+
+        if (emailResult.needsConfirmation) {
+          await chatSessionRepository.update(sessionId, {
+            session_data: {
+              ...sessionData,
+              pending_email_confirmation: {
+                eventId: resolvedEventId,
+                requestedAt: new Date().toISOString(),
+              },
+              awaiting_email_event_name: false,
+              state: 'confirming_email_send',
+              current_step: 'confirm_email_send',
+            },
+            current_step: 'confirm_email_send',
+            language: sessionData.language || requestLanguage,
+          });
+        }
+
+        await chatSessionRepository.addMessage(sessionId, 'bot', emailResult.reply);
+
+        return res.status(HTTP_STATUS.OK).json({
+          reply: emailResult.reply,
+          sessionId,
+          language: sessionData.language || requestLanguage,
+          intent: 'send_email',
+          confidence: 1,
+          nextStep: emailResult.needsConfirmation ? 'confirm_email_send' : 'email_sent',
+          eventCreated: false,
+          eventUpdated: false,
+          emailQueued: !emailResult.needsConfirmation,
+          emailConfirmationRequired: Boolean(emailResult.needsConfirmation),
+          emailResult: emailResult.result || null,
+          eventDraft: sessionData.event_draft || null,
+          suggestions: [],
+          summary: sessionData.event_draft
+            ? openaiService.buildSummary(sessionData.event_draft)
+            : undefined,
+          validation: sessionData.event_draft
+            ? openaiService.validateEventData(sessionData.event_draft)
+            : undefined,
+          fieldInfo: buildFieldInfo(),
+        });
+      }
+
+      // Keep the prompt compact: only recent bot/user messages are sent back to the LLM.
       const conversationHistory = (sessionData.conversation_history || [])
         .filter((msg) => msg.role === 'bot' || msg.role === 'user')
         .slice(-14)
@@ -273,6 +908,9 @@ const createChatController = (
         llmResponse.language || requestLanguage
       );
       eventDraft.language = llmResponse.language || requestLanguage;
+      const emailRequestedAfterCreate =
+        Boolean(sessionData.email_requested_after_create) ||
+        (requestedEmailSend && !sessionData.event_id && !sessionData.event_draft?.id);
 
       await chatSessionRepository.update(sessionId, {
         session_data: {
@@ -281,6 +919,7 @@ const createChatController = (
           event_draft: eventDraft,
           current_step: llmResponse.nextStep,
           state: llmResponse.intent === 'confirm' ? 'confirming' : 'collecting',
+          email_requested_after_create: emailRequestedAfterCreate,
         },
         current_step: llmResponse.nextStep,
         language: llmResponse.language,
@@ -289,6 +928,7 @@ const createChatController = (
       await chatSessionRepository.addMessage(sessionId, 'bot', llmResponse.message);
 
       const validation = openaiService.validateEventData(eventDraft);
+      // A database write happens only after the draft is complete and the user/model confirms it.
       const looksReadyToCommit = llmResponse.nextStep === 'confirm' && validation.valid;
       const userApprovedCommit = looksReadyToCommit && isConfirmationMessage(message);
       const wantsCreation = llmResponse.intent === 'confirm' || userApprovedCommit;
@@ -299,6 +939,9 @@ const createChatController = (
       let createdEventId = null;
       let updatedEventId = null;
       let reply = llmResponse.message;
+      let emailQueued = false;
+      let emailConfirmationRequired = false;
+      let emailResult = null;
 
       if ((sessionData.mode === 'update' ? wantsUpdateCommit : wantsCreation) && validation.valid) {
         const isUpdate = sessionData.mode === 'update' && sessionData.event_id;
@@ -389,6 +1032,7 @@ const createChatController = (
 
           const duplicateEvent = await eventRepository.findEquivalentEvent(identity);
           if (duplicateEvent) {
+            // Prevent the same user from creating an equivalent event twice from chat.
             const duplicateResponse = {
               reply: 'An equivalent event already exists for this user. Change the event details before creating another one.',
               sessionId,
@@ -437,12 +1081,71 @@ const createChatController = (
               error: 'Failed to create event',
             });
           }
+
           eventCreated = true;
           createdEventId = newEvent.id;
+          eventDraft.id = newEvent.id;
         }
 
-        await chatSessionRepository.remove(sessionId);
-        reply = getCommitSuccessMessage(eventDraft.language, eventUpdated);
+        if (eventUpdated) {
+          await chatSessionRepository.remove(sessionId);
+          reply = getCommitSuccessMessage(eventDraft.language, true);
+        } else {
+          const createdEventDraft = {
+            ...eventDraft,
+            id: createdEventId,
+          };
+          const nextSessionData = {
+            ...sessionData,
+            language: eventDraft.language,
+            event_draft: createdEventDraft,
+            current_step: 'email',
+            state: 'event_created',
+            mode: 'update',
+            event_id: createdEventId,
+          };
+
+          let emailReply = '';
+          const shouldSendEmailAfterCreate =
+            requestedEmailSend || sessionData.email_requested_after_create;
+          if (shouldSendEmailAfterCreate) {
+            if (req.user?.role !== 'Admin') {
+              emailReply = ' Only admins can send event notification emails.';
+            } else {
+              const emailSendResult = await buildEmailSendOrConfirmation(
+                eventRepository,
+                createdEventId,
+                eventDraft.language
+              );
+              emailReply = ` ${emailSendResult.reply}`;
+
+              if (emailSendResult.needsConfirmation) {
+                emailConfirmationRequired = true;
+                nextSessionData.pending_email_confirmation = {
+                  eventId: createdEventId,
+                  requestedAt: new Date().toISOString(),
+                };
+                nextSessionData.current_step = 'confirm_email_send';
+                nextSessionData.state = 'confirming_email_send';
+              } else {
+                emailQueued = true;
+                emailResult = emailSendResult.result || null;
+                nextSessionData.current_step = 'email_sent';
+                nextSessionData.state = 'email_sent';
+              }
+            }
+          }
+          nextSessionData.email_requested_after_create = false;
+
+          await chatSessionRepository.update(sessionId, {
+            session_data: nextSessionData,
+            current_step: nextSessionData.current_step,
+            language: eventDraft.language,
+          });
+          reply = shouldSendEmailAfterCreate
+            ? `${getCommitSuccessMessage(eventDraft.language, false)}${emailReply}`
+            : `${getCommitSuccessMessage(eventDraft.language, false)} Say "send the email" when you want to notify the selected role users.`;
+        }
       } else if (wantsCreation && !validation.valid) {
         const language = openaiService.normalizeLanguage(llmResponse.language || requestLanguage);
         const missingText = validation.missingFields.join(', ');
@@ -463,6 +1166,8 @@ const createChatController = (
         eventUpdated,
         createdEventId,
         updatedEventId,
+        emailQueued,
+        emailConfirmationRequired,
       });
 
       const formattedSuggestions = llmResponse.suggestions && llmResponse.suggestions.length > 0
@@ -480,6 +1185,9 @@ const createChatController = (
         eventUpdated,
         createdEventId,
         updatedEventId,
+        emailQueued,
+        emailConfirmationRequired,
+        emailResult,
         eventDraft: eventCreated ? null : eventDraft,
         suggestions: formattedSuggestions,
         summary: llmResponse.summary,
@@ -565,6 +1273,3 @@ const createChatController = (
 };
 
 module.exports = createChatController;
-
-
-

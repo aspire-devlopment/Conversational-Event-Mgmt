@@ -6,10 +6,12 @@
  */
 
 class LogRepository {
+  // Store the database context used to persist API error logs.
   constructor(dataContext) {
     this.dataContext = dataContext;
   }
 
+  // Insert one captured API error into the error_logs audit table.
   async saveErrorLog(payload) {
     const q = `
       INSERT INTO error_logs (

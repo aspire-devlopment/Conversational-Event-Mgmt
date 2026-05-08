@@ -1,5 +1,12 @@
+/**
+ * File: chatEventUtils.js
+ * Purpose: Deterministic helpers for the AI event chat workflow.
+ * Description: Normalizes language, roles, dates, and event drafts; merges LLM
+ *              extractions; decides the next missing field; validates drafts.
+ */
 const { COMMON_TIMEZONES, EVENT_STATUS } = require('../constants/eventConfig');
 const { ALL_ROLES } = require('../constants/appConfig');
+
 const SUPPORTED_LANGUAGES = ['en', 'de', 'fr'];
 const SUPPORTED_ROLES = ALL_ROLES;
 const STATUS_VALUES = Object.values(EVENT_STATUS);
@@ -49,6 +56,7 @@ const LANGUAGE_MARKERS = {
   ],
 };
 
+// Normalize free text so language/date/role keyword matching is consistent.
 function normalizeText(value) {
   return ` ${String(value || '')
     .toLowerCase()
@@ -59,6 +67,7 @@ function normalizeText(value) {
     .trim()} `;
 }
 
+// Convert any language hint into the supported short code: en, de, or fr.
 function normalizeLanguage(language) {
   // Keep every language value in a canonical short form for downstream logic.
   const value = String(language || '').toLowerCase();
@@ -67,6 +76,7 @@ function normalizeLanguage(language) {
   return 'en';
 }
 
+// Create the blank event draft shape used when a chat session starts.
 function createEmptyDraft(language = 'en') {
   // Start every session with a blank draft in the selected language.
   return {
@@ -84,6 +94,7 @@ function createEmptyDraft(language = 'en') {
   };
 }
 
+// Score German/French marker words in the latest message; otherwise keep the existing language.
 function detectLanguage(text, fallback = 'en') {
   const sample = normalizeText(text);
   const scored = Object.entries(LANGUAGE_MARKERS)
@@ -99,6 +110,7 @@ function detectLanguage(text, fallback = 'en') {
   return normalizeLanguage(fallback);
 }
 
+// Convert user/LLM role wording into the exact stored role name.
 function normalizeRole(role) {
   // Map flexible human wording into the exact role names stored in the database.
   const value = String(role || '').trim().toLowerCase();
@@ -110,18 +122,21 @@ function normalizeRole(role) {
   return null;
 }
 
+// Parse a role array or natural-language role list into unique supported roles.
 function parseRoleList(input) {
   // Multi-select roles may arrive as an array or a natural-language list.
   const values = Array.isArray(input) ? input : String(input || '').split(/,|and|und|et|\//i);
   return [...new Set(values.map((item) => normalizeRole(item)).filter(Boolean))];
 }
 
+// Convert status text into one of the event status enum values.
 function normalizeStatus(status) {
   // Status values should always land on one of the supported enums.
   const value = String(status || '').trim().toLowerCase();
   return STATUS_VALUES.find((item) => item.toLowerCase() === value) || null;
 }
 
+// Match timezone text against the configured common timezone list.
 function normalizeTimezone(timezone) {
   // Accept common aliases so the chat can understand everyday timezone names.
   const value = String(timezone || '').trim();
@@ -145,6 +160,7 @@ function normalizeTimezone(timezone) {
   return aliasMap[value.toLowerCase()] || value;
 }
 
+// Parse strict absolute date/time strings into Date objects.
 function parseAbsoluteDateTime(value) {
   const rawValue = String(value || '').trim();
   const normalizedValue = normalizeText(rawValue);
@@ -156,6 +172,7 @@ function parseAbsoluteDateTime(value) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+// Parse time phrases like 10 AM, 14h, or 16:30 into hour/minute values.
 function parseTimePart(input) {
   const text = normalizeText(input);
   if (/\bnoon\b|\bmediodia\b|\bmidi\b/.test(text)) return { hours: 12, minutes: 0, hasExplicitTime: true };
@@ -179,6 +196,7 @@ function parseTimePart(input) {
   return { hours, minutes, hasExplicitTime: true };
 }
 
+// Move a date to a target weekday, optionally forcing the following week.
 function shiftToWeekday(baseDate, targetDay, alwaysNext = false) {
   const current = baseDate.getDay();
   let diff = targetDay - current;
@@ -188,6 +206,7 @@ function shiftToWeekday(baseDate, targetDay, alwaysNext = false) {
   return next;
 }
 
+// Add a relative amount of hours/days/weeks to a base date.
 function addRelativeAmount(baseDate, amount, unit) {
   const next = new Date(baseDate);
   if (unit === 'hour') next.setHours(next.getHours() + amount);
@@ -196,6 +215,7 @@ function addRelativeAmount(baseDate, amount, unit) {
   return next;
 }
 
+// Parse phrases like "in 2 days" or French/German equivalents.
 function parseRelativeAmount(text, baseDate) {
   const patterns = [
     /\bin\s+(\d+)\s+(hour|hours|day|days|week|weeks)\b/,
@@ -221,6 +241,7 @@ function parseRelativeAmount(text, baseDate) {
   return null;
 }
 
+// Parse natural relative date phrases into the backend datetime format.
 function parseRelativeDate(value, baseDate = new Date()) {
   const text = normalizeText(value);
   const date = new Date(baseDate);
@@ -284,6 +305,7 @@ function parseRelativeDate(value, baseDate = new Date()) {
   return null;
 }
 
+// Format a Date object as the database-friendly "YYYY-MM-DD HH:mm" string.
 function formatDateTime(date) {
   return [
     date.getFullYear(),
@@ -292,6 +314,7 @@ function formatDateTime(date) {
   ].join('-') + ` ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
+// Parse either absolute or relative datetime input into a normalized string.
 function parseDateTime(value, baseDate = new Date()) {
   if (!value) return null;
   const absolute = parseAbsoluteDateTime(value);
@@ -300,6 +323,7 @@ function parseDateTime(value, baseDate = new Date()) {
   return relative ? formatDateTime(relative) : null;
 }
 
+// Add hours to a normalized datetime string.
 function addHours(dateTime, hours) {
   const parsed = parseAbsoluteDateTime(String(dateTime || '').replace(' ', 'T'));
   if (!parsed) return null;
@@ -307,6 +331,7 @@ function addHours(dateTime, hours) {
   return formatDateTime(parsed);
 }
 
+// Add days to a normalized datetime string.
 function addDays(dateTime, days) {
   const parsed = parseAbsoluteDateTime(String(dateTime || '').replace(' ', 'T'));
   if (!parsed) return null;
@@ -314,6 +339,7 @@ function addDays(dateTime, days) {
   return formatDateTime(parsed);
 }
 
+// Convert model/user/database field names into one canonical draft shape.
 function normalizeDraft(rawDraft = {}, language = 'en') {
   const draft = createEmptyDraft(language);
   return {
@@ -330,6 +356,7 @@ function normalizeDraft(rawDraft = {}, language = 'en') {
   };
 }
 
+// Apply newly extracted values over the saved draft, then re-normalize dependent fields.
 function mergeDraft(currentDraft, extractedData, language) {
   const current = normalizeDraft(currentDraft, language);
   const merged = {
@@ -374,6 +401,7 @@ function mergeDraft(currentDraft, extractedData, language) {
   return merged;
 }
 
+// Return the required fields that are still missing from the draft.
 function getMissingFields(draft) {
   // Return the first missing fields in the exact order the assistant should ask them.
   const missing = [];
@@ -390,10 +418,12 @@ function getMissingFields(draft) {
   return missing;
 }
 
+// The assistant asks for the next missing required field, or confirmation when complete.
 function getNextStep(draft) {
   return getMissingFields(draft)[0] || 'confirm';
 }
 
+// Human-readable snapshot that is sent to the LLM and returned to the frontend.
 function buildSummary(draft) {
   return [
     `Event Name: ${draft.name || 'not set'}`,
@@ -409,6 +439,7 @@ function buildSummary(draft) {
   ].join('\n');
 }
 
+// Return localized suggestion chips for the current collection step.
 function getSuggestions(step, language = 'en') {
    const key = normalizeLanguage(language);
    const suggestions = {
@@ -455,6 +486,7 @@ function getSuggestions(step, language = 'en') {
    return suggestions[key]?.[step] || [];
  }
 
+// Validate a completed draft before it can be inserted or updated in the database.
 function validateEventData(eventData) {
   // Validation stays deterministic so AI extraction never becomes the source of truth.
   const draft = normalizeDraft(eventData, eventData.language);

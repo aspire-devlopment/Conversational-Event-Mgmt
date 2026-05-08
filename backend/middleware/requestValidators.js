@@ -28,6 +28,7 @@ const { isEmail, isNonEmptyString, isPositiveInteger, isPhoneNumber } = require(
 const { VALID_USER_ROLES, VALIDATION_CONFIG } = require('../constants/appConfig');
 const { buildEventIdentity } = require('../utils/eventIdentity');
 
+// Validate login payload before the auth controller checks credentials.
 const validateLogin = (req, res, next) => {
   const { email, password } = req.body;
   if (!isEmail(email) || !isNonEmptyString(password)) {
@@ -40,6 +41,7 @@ const validateLogin = (req, res, next) => {
   return next();
 };
 
+// Validate registration fields before user creation.
 const validateRegister = (req, res, next) => {
   const { email, firstName, lastName, phone, password, role } = req.body;
 
@@ -87,6 +89,7 @@ const validateRegister = (req, res, next) => {
   return next();
 };
 
+// Validate an admin password reset payload.
 const validateAdminPasswordReset = (req, res, next) => {
   const { newPassword } = req.body;
 
@@ -104,6 +107,7 @@ const validateAdminPasswordReset = (req, res, next) => {
   return next();
 };
 
+// Validate legacy or current event payload shapes before event creation/update.
 const validateEventPayload = (req, res, next) => {
   // Support both old schema (title, description, date, time, location, capacity)
   // and new schema (name, subheading, description, timezone, start_time, end_time)
@@ -157,6 +161,7 @@ const validateEventPayload = (req, res, next) => {
   return next();
 };
 
+// Validate that the route id parameter is a positive integer.
 const validateEventIdParam = (req, res, next) => {
   if (!isPositiveInteger(req.params.id)) {
     return sendError(res, HTTP_STATUS.BAD_REQUEST, 'Invalid event id');
@@ -164,6 +169,7 @@ const validateEventIdParam = (req, res, next) => {
   return next();
 };
 
+// Create middleware that rejects duplicate event payloads for the same user.
 const createValidateEventDuplicate = (eventRepository) => {
   return async (req, res, next) => {
     try {

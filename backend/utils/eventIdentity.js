@@ -1,3 +1,9 @@
+/**
+ * File: eventIdentity.js
+ * Purpose: Canonical identity builder for duplicate/idempotency checks.
+ * Description: Normalizes event fields and roles into a stable object, then hashes
+ *              it so repeated equivalent event requests can be detected safely.
+ */
 const crypto = require('crypto');
 
 const ROLE_NAME_MAP = {
@@ -8,6 +14,7 @@ const ROLE_NAME_MAP = {
   viewer: 'Viewer',
 };
 
+// Trim and optionally lowercase text used in duplicate-event identity checks.
 const normalizeString = (value, { lower = false } = {}) => {
   if (value === undefined || value === null) return null;
   const normalized = String(value).trim().replace(/\s+/g, ' ');
@@ -15,18 +22,21 @@ const normalizeString = (value, { lower = false } = {}) => {
   return lower ? normalized.toLowerCase() : normalized;
 };
 
+// Convert supported datetime text into the same comparable string shape.
 const normalizeDateTime = (value) => {
   const normalized = normalizeString(value);
   if (!normalized) return null;
   return normalized.replace('T', ' ').replace(/Z$/, '');
 };
 
+// Convert flexible role text into the exact role name used by the database.
 const normalizeRole = (role) => {
   const normalized = normalizeString(role, { lower: true });
   if (!normalized) return null;
   return ROLE_NAME_MAP[normalized] || role;
 };
 
+// Normalize, deduplicate, and sort role names so role order does not affect identity.
 const normalizeRoles = (roles) => {
   if (!Array.isArray(roles)) return [];
 
@@ -39,6 +49,7 @@ const normalizeRoles = (roles) => {
   ).sort((a, b) => a.localeCompare(b));
 };
 
+// Use only fields that define whether two event creation requests are equivalent.
 const buildEventIdentity = (payload = {}) => ({
   created_by: payload.created_by ? Number(payload.created_by) : null,
   name: normalizeString(payload.name, { lower: true }),
@@ -52,6 +63,7 @@ const buildEventIdentity = (payload = {}) => ({
   roles: normalizeRoles(payload.roles),
 });
 
+// Hash the normalized identity for compact idempotency storage/comparison.
 const hashEventIdentity = (identity) =>
   crypto.createHash('sha256').update(JSON.stringify(identity)).digest('hex');
 

@@ -56,7 +56,7 @@ const securityMiddleware = isProd
       hidePoweredBy: true,
     });
 
-// Middleware to redirect HTTP to HTTPS in production
+// Redirect HTTP requests to HTTPS when the app is running behind production proxy headers.
 const httpsRedirect = (req, res, next) => {
   if (process.env.NODE_ENV === 'production' && req.header('x-forwarded-proto') !== 'https') {
     return res.redirect(301, `https://${req.header('host')}${req.originalUrl}`);

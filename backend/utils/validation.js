@@ -9,15 +9,18 @@
  *              normalizeEmail() - convert email to lowercase.
  */
 
+// Check whether a value is a string with at least one non-space character.
 const isNonEmptyString = (value) =>
   typeof value === 'string' && value.trim().length > 0;
 
+// Validate a basic email address shape.
 const isEmail = (value) => {
   if (!isNonEmptyString(value)) return false;
   // Validating email format (case-insensitive by nature of email spec)
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 };
 
+// Validate common phone number formats accepted by the API.
 const isPhoneNumber = (value) => {
   if (!isNonEmptyString(value)) return false;
   // Accepts various phone formats: (123) 456-7890, 123-456-7890, 1234567890, +1234567890, +1 (123) 456-7890
@@ -25,12 +28,13 @@ const isPhoneNumber = (value) => {
   return phoneRegex.test(value.trim().replace(/\s/g, ''));
 };
 
+// Check whether a value can be treated as a positive integer ID.
 const isPositiveInteger = (value) => {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0;
 };
 
-// Normalize email to lowercase for consistent storage and comparison
+// Normalize email to lowercase for consistent storage and comparison.
 const normalizeEmail = (email) => {
   return isNonEmptyString(email) ? email.trim().toLowerCase() : email;
 };

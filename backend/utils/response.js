@@ -7,6 +7,7 @@
  *              All responses follow standard format: {status, message, data}.
  */
 
+// Send a standardized success response body.
 const sendSuccess = (res, statusCode, message, data = {}) => {
   return res.status(statusCode).json({
     status: 'success',
@@ -15,6 +16,7 @@ const sendSuccess = (res, statusCode, message, data = {}) => {
   });
 };
 
+// Send a standardized error response body.
 const sendError = (res, statusCode, message, details) => {
   return res.status(statusCode).json({
     status: 'error',

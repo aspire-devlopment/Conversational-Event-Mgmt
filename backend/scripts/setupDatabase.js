@@ -8,7 +8,7 @@
  *              Run once during application setup: node scripts/setupDatabase.js
  */
 
-require('dotenv').config();
+require('../config/env');
 const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');

@@ -15,6 +15,7 @@
 //   5. Request/response body is redacted to remove passwords, tokens, etc.
 // Usage: Applied to all routes automatically in Express app
 
+// Create middleware that logs request/response metadata with a per-request trace ID.
 const createRequestLogger = (loggingService) => (req, res, next) => {
   const startNs = process.hrtime.bigint();
   const traceId = loggingService.createTraceId();

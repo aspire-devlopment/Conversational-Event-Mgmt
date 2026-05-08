@@ -1,5 +1,3 @@
-const { logJson } = require('./jsonLogger');
-
 /**
  * File: logger.js
  * Purpose: Central logger wrapper for the application
@@ -7,7 +5,9 @@ const { logJson } = require('./jsonLogger');
  *              with automatic sensitive data redaction. Used across controllers, services,
  *              and repositories for consistent logging practices.
  */
+const { logJson } = require('./jsonLogger');
 
+// Create a level-specific logger function used by application modules.
 const createLogger = (level) => {
   return (source = 'app', message = '', data = {}) => {
     const payload = {

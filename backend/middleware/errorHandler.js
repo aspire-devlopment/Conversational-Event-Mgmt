@@ -26,9 +26,24 @@ const HTTP_STATUS = require('../constants/httpStatus');
 const MESSAGES = require('../constants/messages');
 const { logJson, redactSensitive } = require('../utils/jsonLogger');
 
+// Convert thrown errors into logged, standardized HTTP error responses.
 const errorHandler = (err, req, res, next) => {
-  const statusCode = err.statusCode || HTTP_STATUS.INTERNAL_SERVER_ERROR;
-  const message = err.message || MESSAGES.COMMON.INTERNAL_SERVER_ERROR;
+  console.error('[errorHandler] ERROR CAUGHT:', { message: err.message, stack: err.stack });
+  // Normalize certain low-level driver/auth errors to friendly client errors
+  let statusCode = err.statusCode || HTTP_STATUS.INTERNAL_SERVER_ERROR;
+  let message = err.message || MESSAGES.COMMON.INTERNAL_SERVER_ERROR;
+
+  // Common PostgreSQL / SASL errors when a non-string password is provided
+  // Map them to 400 Bad Request to avoid leaking low-level messages.
+  const lowered = String(message).toLowerCase();
+  if (
+    lowered.includes('client password must be a string') ||
+    lowered.includes('sasl: scram-server-first-message') ||
+    lowered.includes('invalid first arg') && lowered.includes('password')
+  ) {
+    statusCode = HTTP_STATUS.BAD_REQUEST;
+    message = 'Password must be a string';
+  }
   const traceId = req.traceId || null;
 
   const errorPayload = {

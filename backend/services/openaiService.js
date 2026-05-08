@@ -1,4 +1,11 @@
+/**
+ * File: openaiService.js
+ * Purpose: OpenRouter/LLM service for the chat event builder.
+ * Description: Builds the strict JSON prompt, calls the model, repairs/parses
+ *              structured responses, merges extracted data, and returns replies.
+ */
 const logger = require('../utils/logger');
+const { GoogleGenAI } = require('@google/genai');
 const {
   COMMON_TIMEZONES,
   STATUS_VALUES,
@@ -16,29 +23,57 @@ const {
   validateEventData,
 } = require('./chatEventUtils');
 
+const LLM_PROVIDER = String(process.env.LLM_PROVIDER || 'openrouter').toLowerCase();
 const OPENROUTER_API_KEY =
   process.env.OPENROUTER_API_KEY ||
-  process.env.LLM_API_KEY ||
+  (LLM_PROVIDER === 'openrouter' ? process.env.LLM_API_KEY : '') ||
   '';
 const OPENROUTER_MODEL =
   process.env.OPENROUTER_MODEL ||
-  process.env.LLM_MODEL ||
+  (LLM_PROVIDER === 'openrouter' ? process.env.LLM_MODEL : '') ||
   'openrouter/auto';
 const OPENROUTER_TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS || process.env.LLM_TIMEOUT_MS || 30000);
 const OPENROUTER_API_URL =
   process.env.OPENROUTER_API_URL ||
   'https://openrouter.ai/api/v1/chat/completions';
+const GEMINI_API_KEY =
+  process.env.GEMINI_API_KEY ||
+  process.env.GOOGLE_API_KEY ||
+  (LLM_PROVIDER === 'gemini' ? process.env.LLM_API_KEY : '') ||
+  '';
+const GEMINI_MODEL =
+  process.env.GEMINI_MODEL ||
+  (LLM_PROVIDER === 'gemini' ? process.env.LLM_MODEL : '') ||
+  'gemini-2.5-flash';
+const GEMINI_TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS || process.env.LLM_TIMEOUT_MS || 30000);
+const geminiClient = GEMINI_API_KEY ? new GoogleGenAI({ apiKey: GEMINI_API_KEY }) : null;
 
-logger.info('openaiService', 'OpenRouter chat service initialized', {
-  provider: 'openrouter',
-  model: OPENROUTER_MODEL,
-  hasApiKey: Boolean(OPENROUTER_API_KEY),
-  timeoutMs: OPENROUTER_TIMEOUT_MS,
+logger.info('openaiService', 'LLM chat service initialized', {
+  provider: LLM_PROVIDER,
+  openRouterModel: OPENROUTER_MODEL,
+  geminiModel: GEMINI_MODEL,
+  hasOpenRouterApiKey: Boolean(OPENROUTER_API_KEY),
+  hasGeminiApiKey: Boolean(GEMINI_API_KEY),
+  timeoutMs: LLM_PROVIDER === 'gemini' ? GEMINI_TIMEOUT_MS : OPENROUTER_TIMEOUT_MS,
   apiUrl: OPENROUTER_API_URL,
   timestamp: new Date().toISOString(),
 });
 
+// Ensure the provider API key exists before any LLM call is attempted.
 function validateConfig() {
+  if (LLM_PROVIDER === 'gemini') {
+    if (!GEMINI_API_KEY) {
+      const error = new Error('Gemini API key is not configured');
+      error.providerDetails = {
+        provider: 'gemini',
+        model: GEMINI_MODEL,
+        missingConfig: 'GEMINI_API_KEY or GOOGLE_API_KEY',
+      };
+      throw error;
+    }
+    return;
+  }
+
   if (!OPENROUTER_API_KEY) {
     const error = new Error('OpenRouter API key is not configured');
     error.providerDetails = {
@@ -50,6 +85,7 @@ function validateConfig() {
   }
 }
 
+// Decode a JSON string fragment that was extracted from a larger response.
 function decodeJsonStringFragment(fragment) {
   try {
     return JSON.parse(`"${fragment.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`);
@@ -58,6 +94,16 @@ function decodeJsonStringFragment(fragment) {
   }
 }
 
+function buildGeminiPrompt(messages) {
+  return messages
+    .map((message) => {
+      const label = message.role === 'system' ? 'System' : message.role === 'assistant' ? 'Assistant' : 'User';
+      return `${label}:\n${message.content || ''}`;
+    })
+    .join('\n\n');
+}
+
+// Detect when text appears to be raw JSON/schema output instead of a user reply.
 function looksLikeStructuredPayload(text) {
   const sample = String(text || '').trim();
   if (!sample) return false;
@@ -71,6 +117,7 @@ function looksLikeStructuredPayload(text) {
   );
 }
 
+// Reject empty, structured, or generic fallback messages before showing them to users.
 function isMeaningfulAssistantMessage(text) {
   const sample = String(text || '').trim();
   if (!sample) return false;
@@ -89,6 +136,7 @@ function isMeaningfulAssistantMessage(text) {
   return true;
 }
 
+// Recover the "message" field when the provider returns incomplete JSON.
 function extractMessageFromBrokenJson(text) {
   const markerMatch = String(text || '').match(/"message"\s*:\s*"/);
   if (!markerMatch || typeof markerMatch.index !== 'number') {
@@ -144,8 +192,8 @@ function extractMessageFromBrokenJson(text) {
   return cleaned || null;
 }
 
+// Strip model JSON down to the sentence the user should actually see.
 function extractFriendlyMessage(content, fallbackMessage = 'Could you clarify that?') {
-  // Strip model JSON down to the sentence the user should actually see.
   if (typeof content !== 'string') return fallbackMessage;
 
   const trimmed = content.trim();
@@ -185,11 +233,13 @@ function extractFriendlyMessage(content, fallbackMessage = 'Could you clarify th
   return trimmed;
 }
 
+// Detect accidental English output when the response should be localized.
 function looksEnglish(text) {
   const sample = String(text || '').toLowerCase();
   return /\b(i|you|your|event|please|would you like|confirm|change|created|updated)\b/.test(sample);
 }
 
+// Build deterministic German/French fallback replies when model text is unusable.
 function buildLocalizedFallbackMessage(language, draft, nextStep, validation) {
   const missingText = (validation?.missingFields || []).join(', ') || 'none';
 
@@ -210,6 +260,7 @@ function buildLocalizedFallbackMessage(language, draft, nextStep, validation) {
   return null;
 }
 
+// Ask the LLM to rewrite an assistant message in the selected supported language.
 async function localizeAssistantMessage(message, language) {
   const targetLanguage = normalizeLanguage(language);
   if (!message || targetLanguage === 'en') {
@@ -220,7 +271,7 @@ async function localizeAssistantMessage(message, language) {
   const prompt = `Rewrite the following assistant message in ${languageName}. Preserve the meaning, event details, dates, times, roles, URLs, and status exactly. Return JSON with keys language and message only.\n\nMessage:\n${message}`;
 
   try {
-    const response = await callOpenRouter([{ role: 'user', content: prompt }], 220, targetLanguage);
+    const response = await callConfiguredLlm([{ role: 'user', content: prompt }], 220, targetLanguage);
     return response.message || message;
   } catch (error) {
     logger.warn('openaiService', 'Failed to localize assistant message; using original text', {
@@ -232,8 +283,8 @@ async function localizeAssistantMessage(message, language) {
   }
 }
 
+// Build the system prompt that defines extraction fields, JSON shape, and language rules.
 function getSystemPrompt(language = 'en', options = {}) {
-  // The prompt defines the chat contract: what fields to collect and how to respond.
   const responseRule = {
     en: 'Respond in English.',
     de: 'Respond in German.',
@@ -290,6 +341,7 @@ Schema:
 }`;
 }
 
+// Every model response is forced into the contract used by the controller.
 function normalizeParsedResponse(parsed, fallbackLanguage = 'en') {
   const language = normalizeLanguage(parsed.language || fallbackLanguage);
   return {
@@ -303,6 +355,7 @@ function normalizeParsedResponse(parsed, fallbackLanguage = 'en') {
   };
 }
 
+// Extract a balanced object/array value for a named JSON key from imperfect text.
 function extractBalancedJsonBlock(text, key) {
   const source = String(text || '');
   const keyPattern = new RegExp(`"${key}"\\s*:\\s*([\\[{])`);
@@ -357,6 +410,7 @@ function extractBalancedJsonBlock(text, key) {
   return null;
 }
 
+// Extract a string value for a named JSON key without requiring full JSON parsing.
 function extractJsonStringValue(text, key) {
   const source = String(text || '');
   const match = source.match(new RegExp(`"${key}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`, 's'));
@@ -364,6 +418,7 @@ function extractJsonStringValue(text, key) {
   return decodeJsonStringFragment(match[1]).trim();
 }
 
+// Extract a numeric value for a named JSON key without requiring full JSON parsing.
 function extractJsonNumberValue(text, key) {
   const source = String(text || '');
   const match = source.match(new RegExp(`"${key}"\\s*:\\s*(-?\\d+(?:\\.\\d+)?)`));
@@ -372,6 +427,7 @@ function extractJsonNumberValue(text, key) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+// Salvage useful fields when the provider returns truncated or imperfect JSON.
 function tryParsePartialStructuredLlmContent(content, fallbackLanguage = 'en') {
   const trimmed = String(content || '').trim();
   if (!trimmed) {
@@ -424,6 +480,7 @@ function tryParsePartialStructuredLlmContent(content, fallbackLanguage = 'en') {
   );
 }
 
+// Preferred path: parse a complete JSON object; fallback path: recover partial JSON.
 function tryParseStructuredLlmContent(content, fallbackLanguage = 'en') {
   if (!content || typeof content !== 'string') {
     return null;
@@ -467,6 +524,7 @@ function tryParseStructuredLlmContent(content, fallbackLanguage = 'en') {
   return tryParsePartialStructuredLlmContent(trimmed, fallbackLanguage);
 }
 
+// Read assistant text from the provider response shape.
 function extractContent(data) {
   const content = data?.choices?.[0]?.message?.content;
   if (Array.isArray(content)) {
@@ -479,6 +537,7 @@ function extractContent(data) {
   return typeof content === 'string' ? content.trim() : '';
 }
 
+// Send the prepared chat messages to OpenRouter and convert the provider result to app JSON.
 async function callOpenRouter(messages, maxTokens = 500, language = 'en') {
   validateConfig();
 
@@ -610,6 +669,102 @@ async function callOpenRouter(messages, maxTokens = 500, language = 'en') {
   }
 }
 
+async function callGemini(messages, maxTokens = 500, language = 'en') {
+  validateConfig();
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
+
+  try {
+    logger.info('openaiService', 'Calling Gemini API', {
+      provider: 'gemini',
+      model: GEMINI_MODEL,
+      messageCount: messages.length,
+      maxTokens,
+      timeoutMs: GEMINI_TIMEOUT_MS,
+      timestamp: new Date().toISOString(),
+    });
+
+    const response = await geminiClient.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: buildGeminiPrompt(messages),
+      config: {
+        maxOutputTokens: maxTokens,
+        temperature: parseFloat(process.env.LLM_TEMPERATURE || '0.7'),
+        responseMimeType: 'application/json',
+      },
+      signal: controller.signal,
+    });
+
+    const content = typeof response.text === 'string' ? response.text.trim() : '';
+    if (!content) {
+      const error = new Error('No response content from Gemini');
+      error.providerDetails = {
+        provider: 'gemini',
+        model: GEMINI_MODEL,
+      };
+      throw error;
+    }
+
+    const parsed = tryParseStructuredLlmContent(content, language);
+    if (parsed) {
+      logger.info('openaiService', 'Structured Gemini response parsed', {
+        intent: parsed.intent,
+        confidence: parsed.confidence,
+        timestamp: new Date().toISOString(),
+      });
+      return parsed;
+    }
+
+    logger.warn('openaiService', 'Gemini returned non-JSON content; using plain-text fallback', {
+      contentPreview: content.substring(0, 200),
+      timestamp: new Date().toISOString(),
+    });
+
+    return {
+      intent: 'clarify',
+      language: normalizeLanguage(language),
+      extractedData: createEmptyDraft(language),
+      changedFields: [],
+      message: extractFriendlyMessage(content, content),
+      nextStep: 'name',
+      confidence: 0.5,
+    };
+  } catch (error) {
+    const providerDetails = {
+      provider: 'gemini',
+      model: GEMINI_MODEL,
+      code: error.code,
+      status: error.status,
+      ...(error.name === 'AbortError' ? { timeoutMs: GEMINI_TIMEOUT_MS } : {}),
+      ...(error.providerDetails || {}),
+    };
+
+    logger.error('openaiService', 'Gemini API request failed', {
+      error: error.message,
+      errorName: error.name,
+      errorCode: error.code,
+      errorStatus: error.status,
+      providerDetails,
+      timestamp: new Date().toISOString(),
+    });
+
+    error.providerDetails = providerDetails;
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function callConfiguredLlm(messages, maxTokens = 500, language = 'en') {
+  if (LLM_PROVIDER === 'gemini') {
+    return callGemini(messages, maxTokens, language);
+  }
+
+  return callOpenRouter(messages, maxTokens, language);
+}
+
+// Process one user chat turn: detect language, call the LLM, merge draft data, and reply.
 async function processMessage(userMessage, conversationHistory = [], currentEventData = {}, language = 'en', options = {}) {
   try {
     // Merge the latest message with the current draft, then let the model fill gaps or apply corrections.
@@ -633,7 +788,7 @@ async function processMessage(userMessage, conversationHistory = [], currentEven
     ];
 
     logger.info('openaiService', 'Processing chat message', {
-      provider: 'openrouter',
+      provider: LLM_PROVIDER,
       userMessageLength: userMessage.length,
       historyLength: conversationHistory.length,
       language: effectiveLanguage,
@@ -641,7 +796,8 @@ async function processMessage(userMessage, conversationHistory = [], currentEven
       timestamp: new Date().toISOString(),
     });
 
-    const llmResponse = await callOpenRouter(messages, 700, effectiveLanguage);
+    const llmResponse = await callConfiguredLlm(messages, 700, effectiveLanguage);
+    // Language lock is a manual override; otherwise the model may confirm a new response language.
     const responseLanguage = options.languageLocked
       ? effectiveLanguage
       : (llmResponse.language || effectiveLanguage);
@@ -693,19 +849,23 @@ async function processMessage(userMessage, conversationHistory = [], currentEven
   }
 }
 
+// Build the first message the admin sees when a chat session starts.
 async function generateGreeting(language = 'en') {
-  // Build the first message the admin sees when a chat session starts.
   const detectedLanguage = normalizeLanguage(language);
   const responseLanguage = detectedLanguage === 'de' ? 'German' : detectedLanguage === 'fr' ? 'French' : 'English';
-  const prompt = `Generate a concise, professional opening message for a business event creation assistant. Ask for the event name first. Briefly mention that you can also help with timezone, banner URL, scheduling, publication status, and roles. Avoid emojis, avoid overly casual wording, and keep the tone polished and helpful. Respond in ${responseLanguage} with JSON using keys intent, language, extractedData, changedFields, nextStep, message, confidence.`;
+  const prompt = `Generate a concise, professional opening message for a business event creation assistant. Ask for the event name first. Briefly mention that you can also help with timezone, banner URL, scheduling, publication status, and roles. Avoid emojis, avoid overly casual wording, and keep the tone polished and helpful. Respond in ${responseLanguage}. Return raw JSON only, with keys intent, language, extractedData, changedFields, nextStep, message, confidence.`;
 
   try {
-    const response = await callOpenRouter([{ role: 'user', content: prompt }], 140, detectedLanguage);
+    const response = await callConfiguredLlm([{ role: 'user', content: prompt }], 260, detectedLanguage);
     const greeting = extractFriendlyMessage(
       response.message,
       'Welcome. I can help you create a virtual event. What would you like to name the event?'
     );
-    if (!isMeaningfulAssistantMessage(greeting) || looksLikeStructuredPayload(greeting)) {
+    if (
+      !isMeaningfulAssistantMessage(greeting) ||
+      looksLikeStructuredPayload(greeting) ||
+      /^here\s+is\b/i.test(greeting)
+    ) {
       throw new Error('Greeting response remained structured after extraction');
     }
     return greeting;

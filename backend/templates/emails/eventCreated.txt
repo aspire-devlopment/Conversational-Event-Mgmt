@@ -1,0 +1,65 @@
+================================================================================
+EVENT NOTIFICATION
+================================================================================
+
+NEW EVENT CREATED
+
+Hello {{userName}},
+
+A new event has been created that is relevant to your role as {{userRole}}.
+
+================================================================================
+EVENT DETAILS
+================================================================================
+
+Event Name:
+{{eventName}}
+
+Subtitle:
+{{eventSubheading}}
+
+Description:
+{{eventDescription}}
+
+Start Time:
+{{eventStartTime}}
+
+End Time:
+{{eventEndTime}}
+
+Timezone:
+{{eventTimezone}}
+
+Event ID:
+#{{eventId}}
+
+================================================================================
+VIEW EVENT
+================================================================================
+
+To view the full event details and manage your involvement, please visit:
+
+{{eventLink}}
+
+================================================================================
+IMPORTANT INFORMATION
+================================================================================
+
+This event is now visible to all users with the {{userRole}} role. You can view 
+and interact with it from your dashboard.
+
+If you have any questions about this event, please contact the event administrator.
+
+================================================================================
+CONTACT & PREFERENCES
+================================================================================
+
+Best regards,
+Event Management System
+
+To manage your email preferences or unsubscribe:
+{{APP_URL}}/preferences
+
+© 2026 Event Management System. All rights reserved.
+
+================================================================================

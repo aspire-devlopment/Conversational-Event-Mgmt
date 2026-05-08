@@ -16,6 +16,7 @@
  *              Prevents unhandled promise rejection warnings.
  */
 
+// Wrap an async Express handler and forward rejected promises to next().
 const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };

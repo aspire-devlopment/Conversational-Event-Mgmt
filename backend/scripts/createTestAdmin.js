@@ -6,7 +6,7 @@
  * Description: Inserts a deterministic admin account that can be used to log in immediately.
  */
 
-require('dotenv').config();
+require('../config/env');
 const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
 

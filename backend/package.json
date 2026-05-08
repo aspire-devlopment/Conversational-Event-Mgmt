@@ -17,14 +17,18 @@
     "@google/genai": "^1.47.0",
     "bcrypt": "^6.0.0",
     "body-parser": "^2.2.2",
+    "bull": "^4.16.5",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "helmet": "^7.1.0",
+    "ioredis": "^5.10.1",
     "jsonwebtoken": "^9.0.0",
+    "nodemailer": "^8.0.7",
     "nodemon": "^3.1.14",
     "openai": "^6.33.0",
     "pg": "^8.20.0",
+    "redis": "^5.12.1",
     "uuid": "^13.0.0"
   }
 }

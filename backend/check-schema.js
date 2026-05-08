@@ -4,7 +4,7 @@
  * Script to check chat_sessions table schema
  */
 
-require('dotenv').config();
+require('./config/env');
 const { Pool } = require('pg');
 
 const pool = new Pool({

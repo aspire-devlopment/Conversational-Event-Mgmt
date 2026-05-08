@@ -1,8 +1,15 @@
+/**
+ * Stores one logical create/update result per user + scope + key.
+ * Chat event creation uses this to make repeated HTTP requests replay the same
+ * response instead of inserting duplicate event rows.
+ */
 class IdempotencyRepository {
+  // Store the injected database context used for all idempotency queries.
   constructor(dataContext) {
     this.dataContext = dataContext;
   }
 
+  // Find one idempotency record for a user, logical scope, and client-provided key.
   async findByUserScopeAndKey(userId, scope, key) {
     const rows = await this.dataContext.query(
       `
@@ -18,6 +25,7 @@ class IdempotencyRepository {
     return rows[0] || null;
   }
 
+  // Claim a new idempotency key or classify an existing key as replay/mismatch/pending.
   async claimRequest(userId, scope, key, requestHash) {
     const inserted = await this.dataContext.query(
       `
@@ -52,6 +60,7 @@ class IdempotencyRepository {
     return { state: 'pending', record: existing };
   }
 
+  // Save the final response body so retries can return exactly what happened before.
   async completeRequest(id, statusCode, responseBody, resourceId = null) {
     const rows = await this.dataContext.query(
       `

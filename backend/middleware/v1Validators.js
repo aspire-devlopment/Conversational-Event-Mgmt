@@ -28,6 +28,7 @@ const HTTP_STATUS = require('../constants/httpStatus');
 const { sendError } = require('../utils/response');
 const { isEmail, isNonEmptyString, isPositiveInteger } = require('../utils/validation');
 
+// Require a positive integer id route parameter.
 const requireIdParam = (req, res, next) => {
   if (!isPositiveInteger(req.params.id)) {
     return sendError(res, HTTP_STATUS.BAD_REQUEST, 'Invalid id parameter');
@@ -35,6 +36,7 @@ const requireIdParam = (req, res, next) => {
   return next();
 };
 
+// Validate the minimum user payload accepted by v1 CRUD routes.
 const validateUserPayload = (req, res, next) => {
   const { first_name, email } = req.body;
   if (!isNonEmptyString(first_name) || !isEmail(email)) {
@@ -43,6 +45,7 @@ const validateUserPayload = (req, res, next) => {
   return next();
 };
 
+// Validate the role name payload accepted by v1 role routes.
 const validateRolePayload = (req, res, next) => {
   if (!isNonEmptyString(req.body.name)) {
     return sendError(res, HTTP_STATUS.BAD_REQUEST, 'role name is required');
@@ -50,6 +53,7 @@ const validateRolePayload = (req, res, next) => {
   return next();
 };
 
+// Validate the required event fields accepted by v1 event routes.
 const validateEventPayloadV1 = (req, res, next) => {
   const { name, timezone, start_time, end_time } = req.body;
   if (
@@ -67,6 +71,7 @@ const validateEventPayloadV1 = (req, res, next) => {
   return next();
 };
 
+// Validate that v1 chat session payloads contain JSON session data.
 const validateChatSessionPayload = (req, res, next) => {
   if (typeof req.body.session_data !== 'object' || req.body.session_data === null) {
     return sendError(res, HTTP_STATUS.BAD_REQUEST, 'session_data must be a JSON object');
@@ -74,6 +79,7 @@ const validateChatSessionPayload = (req, res, next) => {
   return next();
 };
 
+// Validate event-role mapping IDs before assigning or unassigning.
 const validateEventRolePayload = (req, res, next) => {
   const { event_id, role_id } = req.body;
   if (!isPositiveInteger(event_id) || !isPositiveInteger(role_id)) {

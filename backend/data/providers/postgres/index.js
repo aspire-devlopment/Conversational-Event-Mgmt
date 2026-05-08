@@ -19,6 +19,7 @@ const ChatSessionRepository = require('../../../repositories/chatSessionReposito
 const EventRoleRepository = require('../../../repositories/eventRoleRepository');
 const LogRepository = require('../../../repositories/logRepository');
 const IdempotencyRepository = require('../../../repositories/idempotencyRepository');
+const EmailNotificationRepository = require('../../../repositories/emailNotificationRepository');
 
 // Factory function to create all repository instances with a Data Context.
 // The Data Context abstracts DB operations, allowing repositories to be DB-agnostic.
@@ -31,6 +32,7 @@ const createPostgresRepositories = (dataContext) => ({
   eventRoleRepository: new EventRoleRepository(dataContext),
   logRepository: new LogRepository(dataContext),
   idempotencyRepository: new IdempotencyRepository(dataContext),
+  emailNotificationRepository: new EmailNotificationRepository(dataContext),
 });
 
 module.exports = createPostgresRepositories;
